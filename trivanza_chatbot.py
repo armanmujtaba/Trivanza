@@ -5,8 +5,8 @@ import openai
 # Title of the app
 st.title("TRIVANZA - Your Travel Companion")
 
-# Initialize OpenAI API key
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# Initialize OpenAI client using new SDK (v1.0+)
+client = openai.OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # Initialize chat history
 if "messages" not in st.session_state:
