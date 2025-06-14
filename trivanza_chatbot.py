@@ -38,12 +38,12 @@ for msg in st.session_state.messages[1:]:  # Skip the system message
 
 # Function to get assistant response
 def get_response(messages):
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=messages,
         temperature=0.7
     )
-    return response.choices[0].message["content"]
+    return response.choices[0].message.content
 
 # User input box
 user_input = st.chat_input("Ask me anything about your travel...")
