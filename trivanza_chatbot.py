@@ -1,51 +1,80 @@
 import streamlit as st
 from openai import OpenAI
-
-# Set the page title
-st.set_page_config(page_title="Trivanza: Your Travel Companion")
-st.title("Trivanza: Your Travel Companion")
+import re
 
 # Initialize OpenAI client
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Initialize chat history
+# Set app title
+st.set_page_config(page_title="Trivanza: Your Smart Travel Companion")
+st.title("Trivanza Chatbot")
+
+# Initialize session state for messages
 if "messages" not in st.session_state:
-    st.session_state.messages = [
-        {"role": "system", "content": (
-            "You are Trivanza, a travel assistant chatbot. Always greet users with: "
-            "'Welcome to Trivanza: Your Travel Companion. I'm excited to help you with your travel plans.'"
-            "Always create structured, cost-estimated day-by-day itineraries with real links. "
-            "When users directly ask travel-related questions, do not ask for origin, transport or accommodation preferences unless required."
-            "Focus on solving travel-related queries from packing, scams, bookings, safety, or budget planning."
-            "Only respond to travel-related content. If a question is off-topic, respond with: "
-            "'This chat is strictly about Travel. Please ask Travel-related questions.'"
-        )}
-    ]
+    st.session_state.messages = []
 
-# Display previous chat messages
-for message in st.session_state.messages[1:]:  # skip system prompt
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# Function to detect if the message is a greeting
+def is_greeting(message):
+    return bool(re.match(r"^(hi|hello|hey|good morning|good evening|namaste|salaam)\b", message.lower()))
 
-# Chat input for user
-if prompt := st.chat_input("Ask me anything about your trip..."):
-    # Display user message
-    st.chat_message("user").markdown(prompt)
+# Function to get response from OpenAI
+def get_response(messages):
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages,
+        temperature=0.7
+    )
+    return response.choices[0].message.content
+
+# Display previous messages
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
+
+# User input box
+if prompt := st.chat_input("Ask me about your travel plans..."):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
-    # Define response function
-    def get_response(messages):
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            temperature=0.7
-        )
-        return response.choices[0].message.content
+    # Greeting detected
+    if is_greeting(prompt):
+        with st.chat_message("assistant"):
+            st.markdown("**Welcome to Trivanza: Your Smart Travel Companion**\nI'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?")
 
-    # Get assistant reply
-    assistant_reply = get_response(st.session_state.messages)
-    st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
+        with st.form("travel_form", clear_on_submit=True):
+            origin = st.text_input("What is your origin (starting location)?")
+            destination = st.text_input("What is your destination (where are you headed)?")
+            dates = st.text_input("What are your travel dates (from and to)?")
+            transport = st.text_input("What is your preferred mode of transport (flight, train, car, etc.)?")
+            accommodation = st.text_input("What are your accommodation preferences (hotel, hostel, etc.)?")
+            budget = st.text_input("What is your budget and currency type (INR, Dollar, Pound, etc.)?")
+            experiences = st.text_area("Are there any specific activities or experiences you're looking to have during your trip?")
+            submitted = st.form_submit_button("Submit")
 
-    # Display assistant reply
-    with st.chat_message("assistant"):
-        st.markdown(assistant_reply)
+            if submitted:
+                form_summary = f"""Here are the travel details:
+- Origin: {origin}
+- Destination: {destination}
+- Dates: {dates}
+- Transport: {transport}
+- Accommodation: {accommodation}
+- Budget: {budget}
+- Experiences: {experiences}"""
+                st.session_state.messages.append({"role": "user", "content": form_summary})
+                with st.chat_message("user"):
+                    st.markdown(form_summary)
+
+                assistant_reply = get_response(st.session_state.messages)
+                st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
+                with st.chat_message("assistant"):
+                    st.markdown(assistant_reply)
+
+    else:
+        # Standard travel query
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        assistant_reply = get_response(st.session_state.messages)
+        st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
+
+        with st.chat_message("assistant"):
+            st.markdown(assistant_reply)
