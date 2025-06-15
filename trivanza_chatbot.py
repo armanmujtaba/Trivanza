@@ -51,52 +51,91 @@ def generate_itinerary(trip_data):
     prompt = f"""You are TRIVANZA, a professional travel planning assistant. 
 
 MANDATORY REQUIREMENTS:
-1. Create a COMPLETE {duration}-day itinerary for ALL days listed below
-2. Each day MUST have detailed morning, afternoon, and evening activities
-3. Include specific prices in INR for all activities, meals, and transport 
-4. Provide booking platform recommendations for each item
+1. Create a COMPLETE {duration}-day itinerary INCLUDING flight schedules and travel logistics
+2. Account for flight departure/arrival times and jet lag
+3. Include realistic travel times between airports and hotels
+4. Adjust activities based on actual arrival/departure times
+5. Include specific prices in INR for all items
 
 TRIP DETAILS:
 - Origin: {trip_data['origin']}
 - Destination: {trip_data['destination']}
+- Transport Mode: {trip_data['transport']}
 - Duration: {duration} days
-- Dates to plan for:
-{dates_list}
+- Dates: {dates_list}
 - Budget: {trip_data['budget']}
 - Accommodation: {trip_data['stay']}
-- Transport: {trip_data['transport']}
 - Interests: {trip_data['activities']}
+
+CRITICAL FLIGHT INFORMATION TO INCLUDE:
+- For international flights from India: Include realistic departure times (usually evening/night)
+- Include flight duration and arrival times (accounting for time zones)
+- Include airport transfer times (1-2 hours each way)
+- For return flights: Include departure times and travel to airport
+- Account for check-in times (3 hours for international flights)
 
 EXACT OUTPUT FORMAT REQUIRED:
 
 # {duration}-Day {trip_data['destination']} Adventure
 **Travel Period:** {start_date.strftime('%B %d')} - {end_date.strftime('%B %d, %Y')}
 
-## Day 1 - {all_dates[0]}
-**Morning (8:00 AM - 12:00 PM):**
-- Activity 1 with specific price and booking link
-- Activity 2 with specific price and booking link
+## OUTBOUND FLIGHT DETAILS
+**{all_dates[0]} - Departure Day**
+- **6:00 PM:** Depart for Indira Gandhi International Airport, Delhi
+- **9:00 PM:** Flight departure to {trip_data['destination']} (₹X,XXX per person)
+- **Flight Duration:** X hours XX minutes
+- **Arrival:** Next day X:XX AM local time
+- **Airport Transfer:** X:XX AM - Taxi/Uber to hotel (₹X,XXX)
+- **Hotel Check-in:** X:XX AM (if available) or luggage storage
 
-**Afternoon (12:00 PM - 6:00 PM):**  
-- Lunch venue with price
-- Activity 3 with specific price and booking link
-- Activity 4 with specific price and booking link
+---
 
-**Evening (6:00 PM - 10:00 PM):**
-- Dinner venue with price  
-- Evening activity with specific price and booking link
+## Day 1 - {all_dates[0]} (Arrival Day)
+**Late Morning/Afternoon (11:00 AM onwards):**
+- [Light activities accounting for jet lag and late arrival]
+- [Include hotel check-in process]
+
+**Evening:**
+- [Easy dinner and rest activities]
 
 ---
 
 ## Day 2 - {all_dates[1] if len(all_dates) > 1 else "N/A"}
-[Same detailed format as Day 1]
+**Morning (8:00 AM - 12:00 PM):**
+- [Full day activities now that settled in]
+
+**Afternoon (12:00 PM - 6:00 PM):**  
+- [Activities with prices and booking links]
+
+**Evening (6:00 PM - 10:00 PM):**
+- [Evening activities with prices]
 
 ---
 
-[Continue this exact pattern for ALL {duration} days through Day {duration}]
+[Continue this pattern for middle days...]
+
+---
+
+## Day {duration} - {all_dates[-1]} (Departure Day)
+**Morning (8:00 AM - 12:00 PM):**
+- **8:00 AM:** Hotel checkout and luggage storage/taxi
+- [Light morning activities near hotel/airport area]
+
+**Afternoon:**
+- **2:00 PM:** Depart for {trip_data['destination']} Airport  
+- **3:00 PM:** Arrive at airport for international departure
+- **6:00 PM:** Flight departure to Delhi (₹X,XXX per person)
+- **Flight Duration:** X hours XX minutes
+- **Next day arrival:** X:XX AM IST in Delhi
+
+## RETURN FLIGHT DETAILS
+**{(end_date + timedelta(days=1)).strftime('%B %d, %Y')} - Arrival in Delhi**
+- **Arrival:** X:XX AM at IGI Airport, Delhi
+- **Airport transfer home:** ₹X,XXX
 
 ## Budget Summary
-- **Flights:** ₹X,XXX
+- **Round-trip Flights:** ₹X,XXX (Delhi-{trip_data['destination']}-Delhi)
+- **Airport Transfers:** ₹X,XXX
 - **Hotels ({duration-1} nights):** ₹X,XXX  
 - **Food ({duration} days):** ₹X,XXX
 - **Activities:** ₹X,XXX
@@ -104,11 +143,16 @@ EXACT OUTPUT FORMAT REQUIRED:
 - **TOTAL:** ₹X,XXX
 
 ## Booking Platforms
-- **Flights:** MakeMyTrip, Cleartrip
+- **Flights:** MakeMyTrip, Cleartrip, Skyscanner
 - **Hotels:** Booking.com, Airbnb
 - **Activities:** Klook, GetYourGuide
 
-CRITICAL: You must provide detailed plans for every single day from Day 1 to Day {duration}. Do not skip any days or provide summary format.
+CRITICAL: 
+- Include realistic flight times for {trip_data['origin']} to {trip_data['destination']} route
+- Account for time zone differences
+- Adjust Day 1 activities for late arrival and jet lag
+- Adjust final day activities for departure logistics
+- Include all airport transfers and check-in times
 
 Would you like to make any changes to this itinerary?"""
 
@@ -116,11 +160,11 @@ Would you like to make any changes to this itinerary?"""
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are TRIVANZA, a detailed travel planner. You must create comprehensive day-by-day itineraries covering ALL requested days with specific activities, prices, and recommendations. Never abbreviate or skip days."},
+                {"role": "system", "content": f"You are TRIVANZA, a detailed travel planner. You must create comprehensive itineraries that include realistic flight schedules, airport transfers, and travel logistics for {trip_data['transport']} travel from {trip_data['origin']} to {trip_data['destination']}. Always account for flight times, jet lag, and departure logistics."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.3,  # Lower temperature for more consistent, detailed output
-            max_tokens=3000   # Increased for longer responses
+            temperature=0.3,
+            max_tokens=3500   # Increased for flight details
         )
         return response.choices[0].message.content
     except Exception as e:
