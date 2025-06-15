@@ -1,5 +1,5 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 
 # ----------------- Configuration -----------------
 st.set_page_config(page_title="Trivanza Smart Travel Planner")
@@ -56,7 +56,7 @@ Format everything cleanly using Markdown.
 
                 with st.spinner("🧭 Creating your personalized itinerary..."):
                     try:
-                        response = openai.ChatCompletion.create(
+                        response = client.chat.completions.create(
                             model="gpt-4",
                             messages=[
                                 {"role": "system", "content": "You are an expert AI travel planner."},
@@ -66,7 +66,7 @@ Format everything cleanly using Markdown.
                             max_tokens=1800
                         )
 
-                        itinerary = response['choices'][0]['message']['content']
+                        itinerary = response.choices[0].message.content
                         st.chat_message("assistant").markdown(itinerary)
 
                     except Exception as e:
