@@ -18,6 +18,7 @@ st.markdown("""
 .header-logo {
     width: 45px;
     height: auto;
+    border-radius: 10px;
 }
 .header-title {
     font-size: 1.6rem;
@@ -59,13 +60,14 @@ user_input = st.chat_input("Say Hi to Trivanza or ask your travel related questi
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    # Trigger form on greeting
     if user_input.strip().lower() in ["hi", "hello", "hey"]:
         st.session_state.show_form = True
         st.session_state.submitted = False
         st.session_state.messages.append({
             "role": "assistant",
-            "content": """👋 **Hello Traveller Welcome to Trivanza – Your Smart Travel Buddy**"""
+            "content": """👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**  
+To help you better, please fill out your travel details below.
+"""
         })
     else:
         try:
@@ -94,7 +96,7 @@ Activities: {st.session_state.trip_context.get("activities", "")}
 
             with st.spinner("✈️ Planning your travel response..."):
                 response = client.chat.completions.create(
-                    model="gpt-40",
+                    model="gpt-4",
                     messages=messages,
                     temperature=0.7,
                     max_tokens=1200
@@ -105,10 +107,20 @@ Activities: {st.session_state.trip_context.get("activities", "")}
             st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
 
 
-# ----------------- DISPLAY CHAT HISTORY -----------------
+# ----------------- DISPLAY CHAT HISTORY (WITH CUSTOM AVATAR) -----------------
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+    with st.container():
+        if msg["role"] == "user":
+            st.markdown(f"**🧑 You:** {msg['content']}")
+        else:
+            st.markdown(f"""
+<div style="display: flex; align-items: flex-start; gap: 10px;">
+    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="40" style="border-radius: 10px; margin-top: 5px;">
+    <div style="background-color: #f0f2f6; padding: 10px 12px; border-radius: 8px; max-width: 90%;">
+        {msg['content']}
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # ----------------- TRAVEL FORM -----------------
 if st.session_state.show_form and not st.session_state.submitted:
@@ -168,12 +180,12 @@ User wants a full travel plan with these inputs:
 - Estimated Prices, Booking links with every itinerary, and Estimated budget summary
 - End with: "Would you like to make any changes or adjustments?"
 
-Platforms: Trusted Platforms
-Flights: Skyscanner, MakeMyTrip etc. 
-Hotels: Booking.com, Airbnb etc. 
-Food: Zomato, TripAdvisor etc.
-Transport: Uber, RedBus, Zoomcar etc.
-Activities: Klook, Viator, GetYourGuide etc.
+Use platforms like:
+Flights: Skyscanner, MakeMyTrip  
+Hotels: Booking.com, Airbnb  
+Food: Zomato, TripAdvisor  
+Transport: Uber, RedBus, Zoomcar  
+Activities: Klook, Viator, GetYourGuide  
 """
 
             try:
