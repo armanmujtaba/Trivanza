@@ -1,6 +1,6 @@
 import streamlit as st
 from openai import OpenAI
-from datetime import date
+from datetime import date, timedelta
 
 # ----------------- CONFIG -----------------
 st.set_page_config(page_title="TRIVANZA – Your Smart Travel Buddy", layout="centered")
@@ -119,11 +119,16 @@ if st.session_state.show_form and not st.session_state.submitted:
 
         submit = st.form_submit_button("Generate Itinerary")
 
-        if submit:
+        if submit and origin and destination:  # Add validation to ensure required fields are filled
             # Validate dates
             if to_date < from_date:
                 st.error("❌ End date must be after start date!")
+            elif not origin.strip() or not destination.strip():
+                st.error("❌ Please enter both origin and destination!")
             else:
+                # Clear any previous error states
+                st.success("✅ Generating your itinerary...")
+                
                 st.session_state.submitted = True
                 st.session_state.show_form = False
 
@@ -150,46 +155,70 @@ if st.session_state.show_form and not st.session_state.submitted:
                 itinerary_prompt = f"""
 You are TRIVANZA – a travel-specialized AI assistant.
 
-User wants a full travel plan with these inputs:
+CRITICAL REQUIREMENT: Create a COMPLETE {trip_duration}-day itinerary covering ALL days from {from_date_formatted} to {to_date_formatted}.
+
+User travel details:
 - Origin: {origin}
-- Destination: {destination}
-- Travel Dates: {from_date_formatted} to {to_date_formatted} ({trip_duration} days)
+- Destination: {destination}  
+- Check-in Date: {from_date_formatted}
+- Check-out Date: {to_date_formatted}
+- Total Duration: {trip_duration} days ({trip_duration-1} nights)
 - Transport: {transport}
-- Stay: {stay}
+- Accommodation: {stay}
 - Budget: {budget}
-- Activities: {activities}
+- Preferred Activities: {activities}
 
-📌 IMPORTANT: Create a {trip_duration}-day itinerary covering the ENTIRE duration from {from_date_formatted} to {to_date_formatted}.
+📌 MANDATORY STRUCTURE:
+**Title**: "{trip_duration}-Day {destination} Adventure ({from_date_formatted} - {to_date_formatted})"
 
-📌 FORMAT:
-- Title (e.g., "{trip_duration}-Day {destination} Getaway – Mid-Budget")
-- Day-by-day breakdown for ALL {trip_duration} days with food, hotel, transport, activities
-- Estimated Prices and Booking links for each day
-- Total estimated budget summary
-- End with: "Would you like to make any changes or adjustments?"
+**Day 1 ({from_date_formatted}):**
+- Morning: [Activities with prices]
+- Afternoon: [Activities with prices] 
+- Evening: [Activities with prices]
+- Accommodation: [Hotel booking details]
 
-Platforms: Trusted Platforms in user area
-Flights: Skyscanner, MakeMyTrip etc.
-Hotels: Booking.com, Airbnb etc.
-Food: Zomato, TripAdvisor etc.
-Transport: Uber, RedBus, Zoomcar etc.
-Activities: Klook, Viator, GetYourGuide etc.
+**Day 2 ({(from_date + timedelta(days=1)).strftime("%B %d, %Y")}):**
+- [Full day breakdown]
 
-Make sure to cover every single day from day 1 to day {trip_duration}.
+**Continue this pattern for ALL {trip_duration} DAYS until {to_date_formatted}**
+
+**Final Day ({to_date_formatted}):**
+- [Activities until departure]
+
+**BUDGET BREAKDOWN:**
+- Flights: [Amount]
+- Hotels ({trip_duration-1} nights): [Amount] 
+- Food ({trip_duration} days): [Amount]
+- Activities: [Amount]
+- Local Transport: [Amount]
+- **Total: [Amount]**
+
+**Booking Platforms:**
+- Flights: Skyscanner, MakeMyTrip
+- Hotels: Booking.com, Airbnb  
+- Activities: Klook, Viator, GetYourGuide
+
+CRITICAL: You MUST create detailed plans for each and every day from Day 1 to Day {trip_duration}. Do not create single-day or abbreviated itineraries.
+
+Would you like to make any changes or adjustments?
 """
 
                 try:
-                    with st.spinner("🎯 Crafting your itinerary..."):
+                    with st.spinner("🎯 Crafting your detailed itinerary..."):
                         response = client.chat.completions.create(
                             model="gpt-4",
                             messages=[
-                                {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
+                                {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant. You MUST create detailed day-by-day itineraries covering the full duration requested by users."},
                                 {"role": "user", "content": itinerary_prompt}
                             ],
-                            temperature=0.8,
-                            max_tokens=1800
+                            temperature=0.7,  # Reduced temperature for more consistent output
+                            max_tokens=2500   # Increased token limit for longer itineraries
                         )
                         itinerary = response.choices[0].message.content
                         st.session_state.messages.append({"role": "assistant", "content": itinerary})
+                        
+                        # Force a rerun to display the new message immediately
+                        st.rerun()
+                        
                 except Exception as e:
                     st.session_state.messages.append({"role": "assistant", "content": f"❌ Error generating itinerary: {e}"})
