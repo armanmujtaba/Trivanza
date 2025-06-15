@@ -58,14 +58,19 @@ Only respond to questions strictly within these 10 TRIVANZA travel scopes:
 🗣️ GREETING RULE:
 If the user says "Hi", "Hello", or similar **without a specific query**, reply with:
 
-"Hello Traveller, Welcome to Trivanza: Your Smart Travel Buddy  "
+"Hello Traveller, Welcome to Trivanza: Your Smart Travel Buddy"
 
 ⚠️ BUT if user asks a specific travel-related question (e.g., "Best hotels in Paris?"), **do not prompt for trip details**. Just answer the query directly.
 
 💸 ITINERARY REQUIREMENTS:
 - Provide **realistic cost estimates** per item (flight, hotel, food, local transport, etc.)
 - Include **daily breakdown** (Day 1, Day 2...)
-- Include 💡 booking links from trusted sources in that area
+- Include 💡 booking links from trusted sources in that area:
+  - Flights: Skyscanner, Google Flights, MakeMyTrip, GoIndiGo etc.
+  - Hotels: Booking.com, Airbnb, Agoda etc.
+  - Transport: Uber, Redbus, Zoomcar etc.
+  - Food: Zomato, Swiggy, TripAdvisor etc.
+  - Activities: Viator, Klook, GetYourGuide etc.
 - Convert currency if needed
 - Show total trip cost
 - If user's budget is too low:
@@ -76,6 +81,7 @@ If the user says "Hi", "Hello", or similar **without a specific query**, reply w
 ❌ Do not answer questions outside travel
 ❌ Do not respond to fiction, hypotheticals, meta-questions
 ❌ If unrelated: "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
+❌ If asked why: "This chat is designed to focus solely on Travel. Please stay on topic."
 
 🧾 FORMATTING RULES:
 - Start with a trip title
@@ -85,14 +91,15 @@ If the user says "Hi", "Hello", or similar **without a specific query**, reply w
 """
 
 # ----------------- CHAT INPUT HANDLER -----------------
-user_input = st.chat_input("Say Hi to Trivanza or ask your travel-related question...")
+user_input = None
+if not st.session_state.submitted:
+    user_input = st.chat_input("Say Hi to Trivanza or ask your travel-related question...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
 
     if user_input.strip().lower() in ["hi", "hello", "hey"]:
         st.session_state.show_form = True
-        st.session_state.submitted = False
         st.session_state.messages.append({
             "role": "assistant",
             "content": "Welcome to Trivanza: Your Smart Travel Companion  \nI'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?\n\n- What is your origin (starting location)?  \n- What is your destination (where are you headed)?  \n- What are your travel dates (from and to)?  \n- What is your preferred mode of transport (flight, train, car, etc.)?  \n- What are your accommodation preferences (hotel, hostel, etc.)?  \n- What are your budget and currency type (INR, Dollar, Pound, etc.)?  \n- Are there any specific activities or experiences you're looking to have during your trip?"
@@ -111,11 +118,6 @@ if user_input:
             st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
 
 # ----------------- DISPLAY CHAT HISTORY -----------------
-if st.session_state.submitted and st.session_state.trip_context:
-    from datetime import timedelta
-    duration_days = (st.session_state.trip_context["to_date"] - st.session_state.trip_context["from_date"]).days + 1
-    st.markdown(f"✅ Showing results for: **{st.session_state.trip_context['origin']} → {st.session_state.trip_context['destination']}**, {duration_days} days")
-
 for msg in st.session_state.messages:
     avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
@@ -146,9 +148,9 @@ if st.session_state.show_form and not st.session_state.submitted:
         submit = st.form_submit_button("Generate Itinerary")
 
         if submit:
+            st.session_state.submitted = True
             st.session_state.show_form = False
 
-            duration_days = (to_date - from_date).days + 1
             st.session_state.trip_context = {
                 "origin": origin,
                 "destination": destination,
@@ -164,18 +166,11 @@ if st.session_state.show_form and not st.session_state.submitted:
 User wants a full travel plan with these inputs:
 - Origin: {origin}
 - Destination: {destination}
-- Dates: {from_date} to {to_date} ({duration_days} days)
+- Dates: {from_date} to {to_date}
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
 - Activities: {activities}
-
-Please generate a {duration_days}-day detailed itinerary with day-by-day breakdown, including:
-- Flights, hotels, transport, activities, food
-- Estimated cost per item
-- Booking links
-- Daily total and full trip total
-- Ensure formatting like: Day 1: [details] ... Day {duration_days}: [details]
 """
 
             try:
@@ -185,6 +180,6 @@ Please generate a {duration_days}-day detailed itinerary with day-by-day breakdo
                         {"role": "user", "content": user_itinerary_prompt}
                     ])
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
-                    st.session_state.submitted = True
+                    st.session_state.submitted = False  # Allow chat input again
             except Exception as e:
                 st.session_state.messages.append({"role": "assistant", "content": f"❌ Error generating itinerary: {e}"})
