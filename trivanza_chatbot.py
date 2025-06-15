@@ -32,6 +32,7 @@ def get_response(messages):
 base_system_prompt = """
 You are TRIVANZA – a travel-specialized AI assistant.
 Always return full detailed multi-day itineraries when user gives travel dates. Show each day breakdown clearly and never skip days.
+Use the full date range. Never default to 1-day trip unless dates are same.
 """
 
 # ----------------- FORM -----------------
@@ -56,14 +57,14 @@ with st.form("trip_form"):
 
     submit = st.form_submit_button("Generate Itinerary")
 
-# ----------------- FORM HANDLER -----------------
 if submit:
     days = (to_date - from_date).days + 1
+    date_range = f"{from_date.strftime('%B %d, %Y')} to {to_date.strftime('%B %d, %Y')}"
     prompt = f"""
 Please generate a complete {days}-day itinerary for a traveler from {origin} to {destination}.
 
 Details:
-- Dates: {from_date} to {to_date}
+- Dates: {date_range}
 - Mode of transport: {transport}
 - Accommodation: {stay}
 - Budget: {budget}
@@ -76,6 +77,7 @@ Include:
 - Booking links from popular trusted sources
 
 Use friendly tone. Optimize for budget given by user. Use INR or relevant currency.
+Ensure that the full range of days is covered, one day per section.
 """
 
     with st.spinner("🎯 Generating your itinerary..."):
@@ -83,14 +85,10 @@ Use friendly tone. Optimize for budget given by user. Use INR or relevant curren
             {"role": "system", "content": base_system_prompt},
             {"role": "user", "content": prompt}
         ])
-        st.session_state.messages.append({"role": "user", "content": prompt})
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
-# ----------------- CHAT UI -----------------
-if st.session_state.messages:
-    st.markdown("---")
-    st.markdown("### 💬 Chat History")
-    for msg in st.session_state.messages:
-        avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
-        with st.chat_message(msg["role"], avatar=avatar):
-            st.markdown(msg["content"])
+# ----------------- DISPLAY RESPONSE -----------------
+for msg in st.session_state.messages:
+    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"])
