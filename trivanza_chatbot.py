@@ -3,7 +3,7 @@ import openai
 
 # ----------------- Configuration -----------------
 st.set_page_config(page_title="Trivanza Smart Travel Planner")
-openai.api_key = "your-openai-api-key"  # Replace with your OpenAI key
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ----------------- Session State -----------------
 if "submitted" not in st.session_state:
