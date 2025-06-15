@@ -35,19 +35,7 @@ if user_input:
 
         st.session_state.messages.append({
             "role": "assistant",
-            "content": """
-👋 **Welcome to Trivanza: Your Smart Travel Companion**
-
-I'm excited to help you with your travel plans. Please provide the following:
-
-- Origin (starting location)  
-- Destination  
-- Travel dates (from & to)  
-- Mode of transport (flight, train, car)  
-- Accommodation preference  
-- Budget & currency  
-- Activities or experiences you’re seeking
-"""
+            "content": ""👋 **Welcome to Trivanza: Your Smart Travel Companion**""
         })
 
     else:
