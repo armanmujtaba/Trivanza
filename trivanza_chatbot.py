@@ -6,7 +6,7 @@ from datetime import date
 st.set_page_config(page_title="TRIVANZA – Your Smart Travel Buddy", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ----------------- CUSTOM HEADER -----------------
+# ----------------- HEADER -----------------
 st.markdown("""
 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
     <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="45px">
@@ -14,7 +14,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- SESSION STATE INIT -----------------
+# ----------------- STATE INIT -----------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -27,7 +27,7 @@ if "submitted" not in st.session_state:
 if "trip_context" not in st.session_state:
     st.session_state.trip_context = {}
 
-# ----------------- CUSTOM FUNCTION -----------------
+# ----------------- OPENAI CHAT -----------------
 def get_response(messages):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
@@ -35,7 +35,7 @@ def get_response(messages):
     )
     return response.choices[0].message.content
 
-# ----------------- CHAT INPUT HANDLER -----------------
+# ----------------- CHAT INPUT -----------------
 user_input = st.chat_input("Say Hi to Trivanza or ask your travel-related question...")
 
 if user_input:
@@ -46,16 +46,18 @@ if user_input:
         st.session_state.submitted = False
         st.session_state.messages.append({
             "role": "assistant",
-            "content": "👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**\nTo help you better, please fill out your travel details below."
+            "content": "👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**\nPlease fill out the form below to get your itinerary."
         })
     else:
         try:
             messages = [
-                {"role": "system", "content": f"""
+                {
+                    "role": "system",
+                    "content": f"""
 You are TRIVANZA – a travel-specialized AI assistant.
 
 🎯 PURPOSE:
-Provide personalized, real-world, budget-aware travel guidance and itineraries. Use the user's last submitted travel details unless updated.
+Generate strict, structured travel itineraries and answer travel-related queries using context below.
 
 📌 CONTEXT:
 Origin: {st.session_state.trip_context.get("origin", "Not provided")}
@@ -66,26 +68,26 @@ Stay: {st.session_state.trip_context.get("stay", "")}
 Budget: {st.session_state.trip_context.get("budget", "")}
 Activities: {st.session_state.trip_context.get("activities", "")}
 
-✅ Answer ONLY travel-related questions.
-✅ Suggest costed, bookable activities.
-✅ Use Markdown format. Do not repeat old answers unless modifications requested.
-                """}
-            ]
-            messages += [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
+✅ Format answers in Markdown
+✅ All suggestions should be real, bookable, with estimated pricing
+✅ Avoid repeated or generic replies. No filler
+"""
+                }
+            ] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
-            with st.spinner("✈️ Planning your travel response..."):
+            with st.spinner("✈️ Planning your response..."):
                 bot_reply = get_response(messages)
                 st.session_state.messages.append({"role": "assistant", "content": bot_reply})
         except Exception as e:
             st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
 
-# ----------------- DISPLAY CHAT HISTORY -----------------
+# ----------------- CHAT HISTORY -----------------
 for msg in st.session_state.messages:
     avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
-# ----------------- TRAVEL FORM -----------------
+# ----------------- FORM DISPLAY -----------------
 if st.session_state.show_form and not st.session_state.submitted:
     with st.form("travel_form"):
         st.markdown("### 🧳 Let’s plan your perfect trip!")
@@ -112,8 +114,6 @@ if st.session_state.show_form and not st.session_state.submitted:
         if submit:
             st.session_state.submitted = True
             st.session_state.show_form = False
-
-            # Save to memory
             st.session_state.trip_context = {
                 "origin": origin,
                 "destination": destination,
@@ -125,10 +125,10 @@ if st.session_state.show_form and not st.session_state.submitted:
                 "activities": activities
             }
 
-            itinerary_prompt = f"""
+            prompt = f"""
 You are TRIVANZA – a travel-specialized AI assistant.
 
-User wants a full travel plan with these inputs:
+Please generate a structured, mid-budget travel itinerary for:
 - Origin: {origin}
 - Destination: {destination}
 - Dates: {from_date} to {to_date}
@@ -137,23 +137,37 @@ User wants a full travel plan with these inputs:
 - Budget: {budget}
 - Activities: {activities}
 
-📌 FORMAT EXAMPLE:
+🎯 Follow this FORMAT:
 
-6-Day Vietnam Adventure – Mid-Budget
+**6-Day [Destination] Itinerary – Mid-Budget**
 
-Based on your travel dates (1-7 June) and destination (Vietnam), create a personalized itinerary including:
-✅ Title + Summary
-✅ Daily breakdown with: Flights, Stay (Best Rated), Meals (Popular in area and best rated), Transport, Activities
-✅ Include costs and booking links (from popular & trusted platforms in user's country like India)
-✅ Final summary of daily and full budget
-✅ End with: "Would you like to make any changes or adjustments?"
-            """
+Day 1: Title  
+✈️ Flight: Details + INR/₹  
+🏨 Hotel: Name + Price + Booking.com Link  
+🍽️ Meals: Restaurant Suggestion + Cost + Zomato Link  
+🚕 Transport: Local Ride + Cost  
+🎟️ Activities: Entry ticket + Link  
+🎯 Daily Total: ₹____
+
+Repeat for each day.
+
+📌 At the end:
+**Budget Summary**  
+- Flights: ₹___  
+- Hotels: ₹___  
+- Food: ₹___  
+- Activities: ₹___  
+- Total: ₹___
+
+Finish with:  
+**Would you like to make any changes or adjustments?**
+"""
 
             try:
                 with st.spinner("🎯 Crafting your itinerary..."):
                     itinerary = get_response([
                         {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
-                        {"role": "user", "content": itinerary_prompt}
+                        {"role": "user", "content": prompt}
                     ])
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
             except Exception as e:
