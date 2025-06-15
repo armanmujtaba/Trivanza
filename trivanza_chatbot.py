@@ -27,6 +27,9 @@ if "submitted" not in st.session_state:
 if "trip_context" not in st.session_state:
     st.session_state.trip_context = {}
 
+if "last_input_type" not in st.session_state:
+    st.session_state.last_input_type = None
+
 # ----------------- CUSTOM FUNCTION -----------------
 def get_response(messages):
     response = client.chat.completions.create(
@@ -65,13 +68,7 @@ If the user says "Hi", "Hello", or similar **without a specific query**, reply w
 💸 ITINERARY REQUIREMENTS:
 - Provide **realistic cost estimates** per item (flight, hotel, food, local transport, etc.)
 - Include **daily breakdown** (Day 1, Day 2...)
-- Include 💡 booking links from trusted sources in that area:
-Example:
-  - Flights: Skyscanner, Google Flights, MakeMyTrip, GoIndiGo etc.
-  - Hotels: Booking.com, Airbnb, Agoda etc.
-  - Transport: Uber, Redbus, Zoomcar etc.
-  - Food: Zomato, Swiggy, TripAdvisor etc.
-  - Activities: Viator, Klook, GetYourGuide etc.
+- Include 💡 booking links from trusted sources in that area
 - Convert currency if needed
 - Show total trip cost
 - If user's budget is too low:
@@ -95,8 +92,10 @@ Example:
 user_input = st.chat_input("Say Hi to Trivanza or ask your travel-related question...")
 
 if user_input:
+    st.session_state.last_input_type = "chat"
     st.session_state.messages.append({"role": "user", "content": user_input})
 
+    # Greeting triggers form
     if user_input.strip().lower() in ["hi", "hello", "hey"]:
         st.session_state.show_form = True
         st.session_state.submitted = False
@@ -150,12 +149,13 @@ if st.session_state.show_form and not st.session_state.submitted:
         if submit:
             st.session_state.submitted = True
             st.session_state.show_form = False
+            st.session_state.last_input_type = "form"
 
             st.session_state.trip_context = {
                 "origin": origin,
                 "destination": destination,
-                "from_date": from_date,
-                "to_date": to_date,
+                "from_date": from_date.strftime("%Y-%m-%d"),
+                "to_date": to_date.strftime("%Y-%m-%d"),
                 "transport": transport,
                 "stay": stay,
                 "budget": budget,
