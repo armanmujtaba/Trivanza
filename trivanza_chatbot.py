@@ -10,7 +10,7 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 st.markdown(
     """
     <div style="display: flex; align-items: center; gap: 10px;">
-        <img src="https://i.imgur.com/fnJLrMq.png" width="40">
+        <img src="trivanza_logo.png" width="40">
         <h2 style="margin: 0;">Trivanza – Smart Travel Planner</h2>
     </div>
     """,
