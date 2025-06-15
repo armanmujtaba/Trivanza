@@ -4,14 +4,19 @@ from datetime import date
 
 # ------------- CONFIG -------------
 st.set_page_config(page_title="TRIVANZA - Your Smart Travel Buddy", layout="centered")
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ------------- APP HEADER -------------
-col1, col2 = st.columns([0.1, 0.9])
-with col1:
-    st.image("trivanza_logo.png", width=60)
-with col2:
-    st.markdown("## TRIVANZA - Your Smart Travel Buddy")
+st.markdown(
+    """
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <img src="trivanza_logo.png" width="45px">
+        <h2 style="margin: 0;">Trivanza – Smart Travel Planner</h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 # ------------- SESSION STATE -------------
 if "messages" not in st.session_state:
@@ -23,21 +28,53 @@ if "show_form" not in st.session_state:
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
+# ------------- CONTEXTUAL PROMPT GENERATOR -------------
+def generate_contextual_prompt(user_query):
+    if "travel_data" in st.session_state:
+        data = st.session_state.travel_data
+        context = f"""
+You are TRIVANZA – a travel-specialized AI assistant. The user has already provided the following travel plan:
+
+- Origin: {data['origin']}
+- Destination: {data['destination']}
+- Dates: {data['from_date']} to {data['to_date']}
+- Transport: {data['transport']}
+- Stay: {data['stay']}
+- Budget: {data['budget']}
+- Interests: {data['activities']}
+
+Now they asked: \"{user_query}\"
+Respond accordingly, remembering their earlier inputs.
+"""
+        return context
+    else:
+        return user_query
+
 # ------------- CHAT INPUT -------------
 user_input = st.chat_input("Say hi to Trivanza or ask your travel question...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
 
+    # Check greeting to show form
     if user_input.lower().strip() in ["hi", "hello", "hey"]:
         st.session_state.show_form = True
         st.session_state.submitted = False
-
         st.session_state.messages.append({
             "role": "assistant",
-            "content": """👋 **Welcome to Trivanza: Your Smart Travel Companion**"""
-        })
+            "content": """
+👋 **Welcome to Trivanza: Your Smart Travel Companion**  
+I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?
 
+- What is your origin (starting location)?  
+- What is your destination (where are you headed)?  
+- What are your travel dates (from and to)?  
+- What is your preferred mode of transport (flight, train, car, etc.)?  
+- What are your accommodation preferences (hotel, hostel, etc.)?  
+- What are your budget and currency type (INR, Dollar, Pound, etc.)?  
+- Are there any specific activities or experiences you're looking to have during your trip?
+"""
+        })
     else:
         try:
             with st.spinner("✈️ Fetching the best answer for your travel query..."):
@@ -48,21 +85,26 @@ if user_input:
 You are TRIVANZA – a travel-specialized AI assistant.
 
 🎯 PURPOSE:
-Provide intelligent, budget-aware travel planning. Always give real-world cost estimates, day-by-day itineraries, and booking links. Avoid non-travel content.
+Provide real-time, intelligent, personalized, and budget-conscious travel planning. Always give real cost estimates, daily itineraries, and booking links. Never answer non-travel questions. Always suggest best-rated options within the user's budget.
 
-✅ Topics:
-• Personalized itineraries
-• Budget/currency planning
-• Booking links (flights, stays, food, activities)
-• Travel safety, insurance, health
-• Cultural tips
-• Sustainable travel
+✅ ALLOWED TOPICS:
+1. Travel problem-solving (cancellations, theft, health issues)
+2. Personalized itineraries (day-by-day, by budget, interest, events)
+3. Real-time alerts (weather, political unrest, flight delays)
+4. Smart packing assistant (checklists by weather & activity)
+5. Culture & Language (local etiquette, translations)
+6. Health & Insurance (local medical help, insurance)
+7. Sustainable travel tips (eco-stays, transport)
+8. Live translation help (signs, speech, receipts)
+9. Budget & currency planning
+10. Expense categories (flight, hotel, food, transport)
 
-❌ If unrelated to travel: "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
+❌ If asked something unrelated to travel, respond with:
+"This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
-📌 Format replies in **Markdown**
-"""},
-                        {"role": "user", "content": user_input}
+🧾 FORMAT all responses in Markdown. Include booking links when suggesting flights, stays, food or activities.
+                        """},
+                        {"role": "user", "content": generate_contextual_prompt(user_input)}
                     ],
                     temperature=0.7,
                     max_tokens=1000
@@ -72,21 +114,18 @@ Provide intelligent, budget-aware travel planning. Always give real-world cost e
         except Exception as e:
             st.session_state.messages.append({"role": "assistant", "content": f"🚨 Error: {e}"})
 
-
 # ------------- DISPLAY CHAT HISTORY -------------
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-
-# ------------- TRAVEL FORM -------------
+# ------------- TRAVEL FORM (Only on greeting) -------------
 if st.session_state.show_form and not st.session_state.submitted:
     with st.form("travel_form"):
         st.markdown("""
-### 📝 Welcome to Trivanza: Your Smart Travel Companion
-
-I'm excited to help you with your travel plans. Please fill out the form below:
-        """)
+### 📝 Let's plan your trip!
+I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?
+""")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -109,41 +148,56 @@ I'm excited to help you with your travel plans. Please fill out the form below:
 
         if submitted:
             st.session_state.submitted = True
-            st.session_state.show_form = False  # Hide form after submission
+
+            st.session_state.travel_data = {
+                "origin": origin,
+                "destination": destination,
+                "from_date": from_date,
+                "to_date": to_date,
+                "transport": transport,
+                "stay": stay,
+                "budget": budget,
+                "activities": activities
+            }
 
             prompt = f"""
 You are TRIVANZA – a travel-specialized AI assistant.
 
-🎯 Generate a complete personalized itinerary based on this info:
+🎯 PURPOSE:
+Provide personalized, real-world travel itineraries based on user input.
+Respond ONLY with travel-related content.
+Provide booking links, costs, realistic suggestions, and budget comparison.
 
+User Inputs:
 - Origin: {origin}
 - Destination: {destination}
 - Dates: {from_date} to {to_date}
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
-- Activities: {activities}
+- Interests: {activities}
 
-📋 Format:
-- Title: e.g. “6-Day Vietnam Escape – Mid Budget”
-- Daily breakdown (Day 1, Day 2…)
-- Include prices & links for: transport, hotel, food, activities
-- Estimate total daily and trip cost
-- Compare to budget. Suggest cheaper/better options if needed
+💸 ITINERARY REQUIREMENTS:
+- Give a title (e.g., "6-Day Vietnam Adventure – Mid-Budget")
+- Include daily breakdown (Day 1, Day 2…)
+- Show: transport, hotel, food, activity with links & prices
+- Estimate cost per item and daily total
+- Show full trip cost at the end
+- If budget is too low, show estimated cost vs. budget and suggest trade-offs
 - Always end with: "Would you like to make any changes or adjustments?"
 
-🧾 Trusted sources:
-Flights: Skyscanner, Google Flights  
-Stays: Booking.com, Agoda, Airbnb  
-Food: Zomato, Swiggy, TripAdvisor  
-Transport: Uber, Redbus, Zoomcar  
-Activities: Viator, GetYourGuide, Klook
+💡 Use trusted platforms:
+Flights: Skyscanner, Google Flights, MakeMyTrip or best at destination
+Hotels: Booking.com, Agoda, Airbnb  or best at destination
+Food: Zomato, Swiggy, TripAdvisor  or best at destination
+Transport: Uber, Redbus, Zoomcar or best at destination
+Activities: Viator, Klook, GetYourGuide or best at destination
 
-Format response in **Markdown**
+📌 Format everything in Markdown.
             """
 
             try:
-                with st.spinner("🧳 Planning your perfect trip..."):
+                with st.spinner("🧳 Making your perfect Trip itinerary..."):
                     response = client.chat.completions.create(
                         model="gpt-4",
                         messages=[
@@ -155,6 +209,5 @@ Format response in **Markdown**
                     )
                     itinerary = response.choices[0].message.content
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
-                    st.chat_message("assistant").markdown(itinerary)
             except Exception as e:
-                st.session_state.messages.append({"role": "assistant", "content": f"❌ Error: {e}"})
+                st.session_state.messages.append({"role": "assistant", "content": f"❌ Unable to generate itinerary. Error: {e}"})
