@@ -1,60 +1,67 @@
 import streamlit as st
 from openai import OpenAI
 
-# ----------------- Configuration -----------------
-st.set_page_config(page_title="Trivanza Smart Travel Planner")
+# ----------------- CONFIG -----------------
+st.set_page_config(page_title="Trivanza – AI Travel Planner", page_icon="🧳")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ----------------- Session State -----------------
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
+# ----------------- STATE INIT -----------------
+if "itinerary_ready" not in st.session_state:
+    st.session_state.itinerary_ready = False
 
-# ----------------- Chat Input & Greeting -----------------
+# ----------------- CHAT GREETING -----------------
 user_input = st.chat_input("Say hi to Trivanza!")
 
-if user_input and not st.session_state.submitted:
+if user_input and not st.session_state.itinerary_ready:
     if "hi" in user_input.lower() or "hello" in user_input.lower():
         with st.chat_message("assistant"):
             st.markdown("""
-                ### 👋 Welcome to Trivanza: Your Smart Travel Companion  
-                I'm excited to help you with your travel plans. To provide the best experience, could you please share a few details with me?
+                ### 👋 Hey there, I'm Trivanza – your personal AI travel planner!  
+                Let's build your perfect trip together. Fill out a few quick details below:
             """)
 
+        # ----------------- USER TRAVEL FORM -----------------
         with st.form("travel_form"):
-            origin = st.text_input("🌍 What is your origin (starting location)?")
-            destination = st.text_input("📍 What is your destination (where are you headed)?")
-            travel_dates = st.text_input("📅 What are your travel dates (from and to)?")
-            transport = st.selectbox("🛫 Preferred mode of transport", ["Flight", "Train", "Car", "Bus"])
-            stay = st.selectbox("🏨 Accommodation preference", ["Hotel", "Hostel", "Airbnb", "Resort"])
-            budget = st.text_input("💰 Budget and currency (e.g., ₹50000 INR or $800 USD)")
-            activities = st.text_area("🎯 Activities or experiences you're looking for?")
+            col1, col2 = st.columns(2)
+            with col1:
+                origin = st.text_input("🌍 Where are you starting from?")
+            with col2:
+                destination = st.text_input("📍 Where are you going?")
 
-            submitted = st.form_submit_button("Get My Travel Plan")
+            travel_dates = st.text_input("📅 Travel Dates (e.g. 1-7 July)")
+            transport = st.selectbox("🚗 Preferred Mode of Transport", ["Flight", "Train", "Bus", "Car"])
+            stay = st.selectbox("🏨 Preferred Stay Type", ["Hotel", "Hostel", "Airbnb", "Resort"])
+            budget = st.text_input("💰 Budget (e.g. ₹50,000 or $800)")
+            activities = st.text_area("🎯 What kind of experiences are you looking for?", placeholder="Adventure, food, culture, beaches, mountains...")
 
+            submitted = st.form_submit_button("📍 Generate My Itinerary")
+
+            # ----------------- ON SUBMIT -----------------
             if submitted:
-                st.session_state.submitted = True
+                st.session_state.itinerary_ready = True
+                with st.spinner("🧭 Crafting your personalized travel plan..."):
 
-                # Build Prompt for AI
-                prompt = f"""
-You are a travel expert. Create a detailed day wise travel itinerary for a user traveling from {origin} to {destination} during {travel_dates}.
+                    prompt = f"""
+You are an expert travel planner AI.
+
+Plan a detailed day-wise itinerary for a trip from {origin} to {destination} during {travel_dates}.
 Preferences:
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
-- Activities: {activities}
+- Interests: {activities}
 
-Include:
-- Day-wise plan with emoji
-- Flight/train/transport details with prices
-- Hotel/stay suggestions with prices and booking links
-- Meal or activity suggestions with links
-- Total daily cost and overall budget
+Must Include:
+- Each day as a new section with emoji title
+- Transport & accommodation suggestions with prices and booking links
+- Food and activities with names and links (e.g., Zomato, Booking.com, Viator)
+- Daily budget total
+- Final total cost
 - End with: "Would you like to make any changes or adjustments?"
 
-Format everything cleanly using Markdown.
-                """
+Use clean, readable Markdown formatting.
+                    """
 
-                with st.spinner("🧭 Creating your personalized itinerary..."):
                     try:
                         response = client.chat.completions.create(
                             model="gpt-4",
@@ -63,11 +70,11 @@ Format everything cleanly using Markdown.
                                 {"role": "user", "content": prompt}
                             ],
                             temperature=0.7,
-                            max_tokens=1800
+                            max_tokens=2000
                         )
 
-                        itinerary = response.choices[0].message.content
-                        st.chat_message("assistant").markdown(itinerary)
+                        final_plan = response.choices[0].message.content
+                        st.chat_message("assistant").markdown(final_plan)
 
                     except Exception as e:
-                        st.error(f"🚨 Error generating itinerary: {e}")
+                        st.error(f"⚠️ Failed to generate itinerary: {e}")
