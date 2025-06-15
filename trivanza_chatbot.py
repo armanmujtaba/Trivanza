@@ -2,30 +2,46 @@ import streamlit as st
 from openai import OpenAI
 from datetime import date
 
-# ----------------- Configuration -----------------
-st.set_page_config(page_title="Trivanza Smart Travel Planner", layout="centered")
+# ------------- CONFIG -------------
+st.set_page_config(page_title="TRIVANZA - Your Smart Travel Buddy", layout="centered")
+
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ----------------- Branding -----------------
-col1, col2 = st.columns([1, 6])
-with col1:
-    st.image("trivanza_logo.png", width=60)  # Ensure this logo exists in your app directory
-with col2:
-    st.markdown("TRIVANZA – Your Smart Travel Companion")
+# ------------- APP HEADER -------------
+st.markdown(
+    """
+    <div style="display: flex; align-items: center; gap: 10px;">
+        <img src="https://i.imgur.com/fnJLrMq.png" width="40">
+        <h2 style="margin: 0;">Trivanza – Smart Travel Planner</h2>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
-st.markdown("---")
+# ------------- SESSION STATE -------------
+if "messages" not in st.session_state:
+    st.session_state.messages = []
 
-# ----------------- Session State -----------------
+if "show_form" not in st.session_state:
+    st.session_state.show_form = False
+
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
-# ----------------- Chat Input & Greeting -----------------
+# ------------- CHAT INPUT -------------
 user_input = st.chat_input("Say hi to Trivanza or ask your travel question...")
 
-if user_input and not st.session_state.submitted:
-    if user_input.strip().lower() in ["hi", "hello", "hey"]:
-        with st.chat_message("assistant"):
-            st.markdown("""
+if user_input:
+    st.session_state.messages.append({"role": "user", "content": user_input})
+
+    # Check greeting to show form
+    if user_input.lower().strip() in ["hi", "hello", "hey"]:
+        st.session_state.show_form = True
+        st.session_state.submitted = False  # Reset in case of second try
+
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": """
 👋 **Welcome to Trivanza: Your Smart Travel Companion**  
 I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?
 
@@ -36,15 +52,15 @@ I'm excited to help you with your travel plans. To provide you with the best pos
 - What are your accommodation preferences (hotel, hostel, etc.)?  
 - What are your budget and currency type (INR, Dollar, Pound, etc.)?  
 - Are there any specific activities or experiences you're looking to have during your trip?
-            """)
+"""
+        })
     else:
         try:
-            with st.chat_message("assistant"):
-                with st.spinner("✈️ Fetching the best answer for your travel query..."):
-                    response = client.chat.completions.create(
-                        model="gpt-4",
-                        messages=[
-                            {"role": "system", "content": """
+            with st.spinner("✈️ Fetching the best answer for your travel query..."):
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": """
 You are TRIVANZA – a travel-specialized AI assistant.
 
 🎯 PURPOSE:
@@ -66,40 +82,52 @@ Provide real-time, intelligent, personalized, and budget-conscious travel planni
 "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
 🧾 FORMAT all responses in Markdown. Include booking links when suggesting flights, stays, food or activities.
-"""},
-                            {"role": "user", "content": user_input}
-                        ],
-                        temperature=0.7,
-                        max_tokens=1000
-                    )
-                    st.markdown(response.choices[0].message.content)
+                        """},
+                        {"role": "user", "content": user_input}
+                    ],
+                    temperature=0.7,
+                    max_tokens=1000
+                )
+                answer = response.choices[0].message.content
+                st.session_state.messages.append({"role": "assistant", "content": answer})
         except Exception as e:
-            st.error("🚨 Error responding to your query.")
-            st.exception(e)
+            st.session_state.messages.append({"role": "assistant", "content": f"🚨 Error: {e}"})
 
-# ----------------- Travel Form & Itinerary -----------------
-with st.form("travel_form"):
-    st.markdown("### 📝 Let's plan your trip!")
 
-    origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi")
-    destination = st.text_input("📍 Destination", placeholder="e.g., Vietnam")
+# ------------- DISPLAY CHAT HISTORY -------------
+for msg in st.session_state.messages:
+    with st.chat_message(msg["role"]):
+        st.markdown(msg["content"])
 
-    # NEW DATE PICKERS
-    from_date = st.date_input("📅 Start Date", min_value=date.today())
-    to_date = st.date_input("📅 End Date", min_value=from_date)
+# ------------- TRAVEL FORM (Only on greeting) -------------
+if st.session_state.show_form and not st.session_state.submitted:
+    with st.form("travel_form"):
+        st.markdown("### 📝 Welcome to Trivanza: Your Smart Travel Companion
+I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?")
 
-    transport = st.selectbox("🛫 Mode of Transport", ["Flight", "Train", "Car", "Bus"])
-    stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"])
-    budget = st.text_input("💰 Budget (e.g., ₹50000 INR or $800 USD)")
-    activities = st.text_area("🎯 Desired Activities", placeholder="e.g., hiking, beach, food tour")
+        col1, col2 = st.columns(2)
+        with col1:
+            origin = st.text_input("🌍 Origin", placeholder="e.g., New Delhi")
+        with col2:
+            destination = st.text_input("📍 Destination", placeholder="e.g., Paris")
 
-    submitted = st.form_submit_button("Generate Itinerary")
+        col3, col4 = st.columns(2)
+        with col3:
+            from_date = st.date_input("📅 From Date", min_value=date.today())
+        with col4:
+            to_date = st.date_input("📅 To Date", min_value=from_date)
 
-    if submitted:
-        st.session_state.submitted = True
-        travel_dates = f"{from_date.strftime('%d %b %Y')} to {to_date.strftime('%d %b %Y')}"
+        transport = st.selectbox("🛫 Mode of Transport", ["Flight", "Train", "Car", "Bus"])
+        stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"])
+        budget = st.text_input("💰 Budget (e.g., ₹50000 INR or $800 USD)")
+        activities = st.text_area("🎯 Desired Activities", placeholder="e.g., hiking, beach, food tour")
 
-        prompt = f"""
+        submitted = st.form_submit_button("Plan My Trip")
+
+        if submitted:
+            st.session_state.submitted = True
+
+            prompt = f"""
 You are TRIVANZA – a travel-specialized AI assistant.
 
 🎯 PURPOSE:
@@ -110,7 +138,7 @@ Provide booking links, costs, realistic suggestions, and budget comparison.
 User Inputs:
 - Origin: {origin}
 - Destination: {destination}
-- Dates: {travel_dates}
+- Dates: {from_date} to {to_date}
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
@@ -126,29 +154,27 @@ User Inputs:
 - Always end with: "Would you like to make any changes or adjustments?"
 
 💡 Use trusted platforms:
-Flights: Skyscanner, Google Flights, MakeMyTrip  
-Hotels: Booking.com, Agoda, Airbnb  
-Food: Zomato, Swiggy, TripAdvisor  
-Transport: Uber, Redbus, Zoomcar  
-Activities: Viator, Klook, GetYourGuide
+Flights: Skyscanner, Google Flights, MakeMyTrip or best at destination
+Hotels: Booking.com, Agoda, Airbnb  or best at destination
+Food: Zomato, Swiggy, TripAdvisor  or best at destination
+Transport: Uber, Redbus, Zoomcar or best at destination
+Activities: Viator, Klook, GetYourGuide or best at destination
 
 📌 Format everything in Markdown.
-        """
+            """
 
-        try:
-            with st.spinner("🧳 Planning your perfect trip..."):
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=0.8,
-                    max_tokens=1800
-                )
-                itinerary = response.choices[0].message.content
-                with st.chat_message("assistant"):
-                    st.markdown(itinerary)
-        except Exception as e:
-            st.error("❌ Unable to generate itinerary. Please check your OpenAI key or try again later.")
-            st.exception(e)
+            try:
+                with st.spinner("🧳 Making your perfect Trip itinerary..."):
+                    response = client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
+                            {"role": "user", "content": prompt}
+                        ],
+                        temperature=0.8,
+                        max_tokens=1800
+                    )
+                    itinerary = response.choices[0].message.content
+                    st.session_state.messages.append({"role": "assistant", "content": itinerary})
+            except Exception as e:
+                st.session_state.messages.append({"role": "assistant", "content": f"❌ Unable to generate itinerary. Error: {e}"})
