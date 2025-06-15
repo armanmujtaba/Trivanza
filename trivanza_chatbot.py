@@ -1,78 +1,138 @@
 import streamlit as st
 from openai import OpenAI
 
-# Set your page configuration
+# ----------------- Configuration -----------------
 st.set_page_config(page_title="Trivanza Smart Travel Planner", layout="centered")
-
-# Setup OpenAI client
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# Session state to track form submission
+# ----------------- Session State -----------------
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 
-# Chat input box
-user_input = st.chat_input("Say hi to Trivanza!")
+# ----------------- Chat Input & Greeting -----------------
+user_input = st.chat_input("Say hi to Trivanza or ask your travel question...")
 
-# Greet the user and ask for travel details
 if user_input and not st.session_state.submitted:
-    if "hi" in user_input.lower() or "hello" in user_input.lower():
+    if user_input.strip().lower() in ["hi", "hello", "hey"]:
         with st.chat_message("assistant"):
             st.markdown("""
-                ### 👋 Welcome to Trivanza: Your Smart Travel Companion  
-                I'm excited to help you with your travel plans. Fill out this quick form to get your custom itinerary.
+                👋 **Welcome to Trivanza: Your Smart Travel Companion**  
+                I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?
+
+                - What is your origin (starting location)?  
+                - What is your destination (where are you headed)?  
+                - What are your travel dates (from and to)?  
+                - What is your preferred mode of transport (flight, train, car, etc.)?  
+                - What are your accommodation preferences (hotel, hostel, etc.)?  
+                - What are your budget and currency type (INR, Dollar, Pound, etc.)?  
+                - Are there any specific activities or experiences you're looking to have during your trip?
             """)
+    else:
+        try:
+            with st.chat_message("assistant"):
+                with st.spinner("✈️ Fetching the best answer for your travel query..."):
+                    response = client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[
+                            {"role": "system", "content": """
+You are TRIVANZA – a travel-specialized AI assistant.
 
-        with st.form("travel_form"):
-            origin = st.text_input("🌍 What is your origin (starting location)?", placeholder="e.g., Delhi")
-            destination = st.text_input("📍 What is your destination?", placeholder="e.g., Vietnam")
-            travel_dates = st.text_input("📅 What are your travel dates (from and to)?", placeholder="e.g., 1-7 June")
-            transport = st.selectbox("🛫 Preferred mode of transport", ["Flight", "Train", "Car", "Bus"])
-            stay = st.selectbox("🏨 Accommodation preference", ["Hotel", "Hostel", "Airbnb", "Resort"])
-            budget = st.text_input("💰 Budget and currency", placeholder="e.g., ₹50,000 INR or $800 USD")
-            activities = st.text_area("🎯 Activities or experiences you're looking for?", placeholder="e.g., adventure, beach, historical sites")
+🎯 PURPOSE:
+Provide real-time, intelligent, personalized, and budget-conscious travel planning. Always give real cost estimates, daily itineraries, and booking links. Never answer non-travel questions. Always suggest best-rated options within the user's budget.
 
-            submitted = st.form_submit_button("🧭 Get My Travel Plan")
+✅ ALLOWED TOPICS:
+1. Travel problem-solving (cancellations, theft, health issues)
+2. Personalized itineraries (day-by-day, by budget, interest, events)
+3. Real-time alerts (weather, political unrest, flight delays)
+4. Smart packing assistant (checklists by weather & activity)
+5. Culture & Language (local etiquette, translations)
+6. Health & Insurance (local medical help, insurance)
+7. Sustainable travel tips (eco-stays, transport)
+8. Live translation help (signs, speech, receipts)
+9. Budget & currency planning
+10. Expense categories (flight, hotel, food, transport)
 
-            if submitted:
-                st.session_state.submitted = True
+❌ If asked something unrelated to travel, respond with:
+"This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
-                # Create the travel planning prompt
-                prompt = f"""
-You are a travel expert. Create a detailed day-wise travel itinerary for a user traveling from {origin} to {destination} during {travel_dates}.
-Preferences:
+🧾 FORMAT all responses in Markdown. Include booking links when suggesting flights, stays, food or activities.
+"""},
+                            {"role": "user", "content": user_input}
+                        ],
+                        temperature=0.7,
+                        max_tokens=1000
+                    )
+                    st.markdown(response.choices[0].message.content)
+        except Exception as e:
+            st.error("🚨 Error responding to your query.")
+            st.exception(e)
+
+# ----------------- Travel Form & Itinerary -----------------
+with st.form("travel_form"):
+    st.markdown("### 📝 Let's plan your trip!")
+    origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi")
+    destination = st.text_input("📍 Destination", placeholder="e.g., Vietnam")
+    travel_dates = st.text_input("📅 Travel Dates", placeholder="e.g., 1-7 July")
+    transport = st.selectbox("🛫 Mode of Transport", ["Flight", "Train", "Car", "Bus"])
+    stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"])
+    budget = st.text_input("💰 Budget (e.g., ₹50000 INR or $800 USD)")
+    activities = st.text_area("🎯 Desired Activities", placeholder="e.g., hiking, beach, food tour")
+
+    submitted = st.form_submit_button("Generate Itinerary")
+
+    if submitted:
+        st.session_state.submitted = True
+
+        prompt = f"""
+You are TRIVANZA – a travel-specialized AI assistant.
+
+🎯 PURPOSE:
+Provide personalized, real-world travel itineraries based on user input.
+Respond ONLY with travel-related content.
+Provide booking links, costs, realistic suggestions, and budget comparison.
+
+User Inputs:
+- Origin: {origin}
+- Destination: {destination}
+- Dates: {travel_dates}
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
-- Activities: {activities}
+- Interests: {activities}
 
-Include:
-- Day-wise plan with emoji
-- Flight/train/transport options with prices
-- Hotel/stay suggestions with prices and booking links
-- Meal or activity suggestions with prices and links
-- Total daily cost and full trip budget
-- End with: "Would you like to make any changes or adjustments?"
+💸 ITINERARY REQUIREMENTS:
+- Give a title (e.g., "6-Day Vietnam Adventure – Mid-Budget")
+- Include daily breakdown (Day 1, Day 2…)
+- Show: transport, hotel, food, activity with links & prices
+- Estimate cost per item and daily total
+- Show full trip cost at the end
+- If budget is too low, show estimated cost vs. budget and suggest trade-offs
+- Always end with: "Would you like to make any changes or adjustments?"
 
-Format everything in clean Markdown.
-                """
+💡 Use trusted platforms:
+Flights: Skyscanner, Google Flights, MakeMyTrip  
+Hotels: Booking.com, Agoda, Airbnb  
+Food: Zomato, Swiggy, TripAdvisor  
+Transport: Uber, Redbus, Zoomcar  
+Activities: Viator, Klook, GetYourGuide
 
-                with st.spinner("🛫 Crafting your itinerary..."):
-                    try:
-                        response = client.chat.completions.create(
-                            model="gpt-4",
-                            messages=[
-                                {"role": "system", "content": "You are an expert AI travel planner."},
-                                {"role": "user", "content": prompt}
-                            ],
-                            temperature=0.8,
-                            max_tokens=1800
-                        )
+📌 Format everything in Markdown.
+        """
 
-                        itinerary = response.choices[0].message.content
-                        with st.chat_message("assistant"):
-                            st.markdown(itinerary)
-
-                    except Exception as e:
-                        st.error("❌ Error generating itinerary. Please try again.")
-                        st.exception(e)
+        try:
+            with st.spinner("🧳 Planning your perfect trip..."):
+                response = client.chat.completions.create(
+                    model="gpt-4",
+                    messages=[
+                        {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.8,
+                    max_tokens=1800
+                )
+                itinerary = response.choices[0].message.content
+                with st.chat_message("assistant"):
+                    st.markdown(itinerary)
+        except Exception as e:
+            st.error("❌ Unable to generate itinerary. Please check your OpenAI key or try again later.")
+            st.exception(e)
