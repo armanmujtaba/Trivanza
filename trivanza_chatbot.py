@@ -6,34 +6,15 @@ from datetime import date
 st.set_page_config(page_title="TRIVANZA – Your Smart Travel Buddy", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ----------------- STATIC HEADER -----------------
+# ----------------- CUSTOM HEADER -----------------
 st.markdown("""
-<style>
-.header-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 10px;
-}
-.header-logo {
-    width: 45px;
-    height: auto;
-    border-radius: 8px;
-}
-.header-title {
-    font-size: 22px;
-    font-weight: 600;
-    margin: 0;
-}
-</style>
-
-<div class="header-container">
-    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" class="header-logo">
-    <div class="header-title">TRIVANZA – Your Smart Travel Buddy</div>
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="45px">
+    <h2 style="margin: 0;">TRIVANZA – Your Smart Travel Buddy</h2>
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- SESSION STATES -----------------
+# ----------------- SESSION STATE INIT -----------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -46,8 +27,8 @@ if "submitted" not in st.session_state:
 if "trip_context" not in st.session_state:
     st.session_state.trip_context = {}
 
-# ----------------- CHAT INPUT -----------------
-user_input = st.chat_input("Say Hi to Trivanza or ask your travel related question...")
+# ----------------- CHAT INPUT HANDLER -----------------
+user_input = st.chat_input("Say Hi to Trivanza or ask your travel-related question...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -57,9 +38,7 @@ if user_input:
         st.session_state.submitted = False
         st.session_state.messages.append({
             "role": "assistant",
-            "content": """👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**  
-To help you better, please fill out your travel details below.
-"""
+            "content": "👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**\nTo help you better, please fill out your travel details below."
         })
     else:
         try:
@@ -99,20 +78,11 @@ Activities: {st.session_state.trip_context.get("activities", "")}
             st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
 
 
-# ----------------- CHAT DISPLAY (STATIC STYLE) -----------------
+# ----------------- DISPLAY CHAT HISTORY -----------------
 for msg in st.session_state.messages:
-    with st.container():
-        if msg["role"] == "user":
-            st.markdown(f"**🧑 You:** {msg['content']}")
-        else:
-            st.markdown(f"""
-<div style="display: flex; align-items: flex-start; gap: 10px;">
-    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="40" style="border-radius: 6px; margin-top: 5px;">
-    <div style="background-color: #f0f2f6; padding: 10px 12px; border-radius: 6px; max-width: 90%;">
-        {msg['content']}
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"])
 
 # ----------------- TRAVEL FORM -----------------
 if st.session_state.show_form and not st.session_state.submitted:
@@ -142,6 +112,7 @@ if st.session_state.show_form and not st.session_state.submitted:
             st.session_state.submitted = True
             st.session_state.show_form = False
 
+            # Save to memory
             st.session_state.trip_context = {
                 "origin": origin,
                 "destination": destination,
@@ -171,12 +142,12 @@ User wants a full travel plan with these inputs:
 - Estimated Prices, Booking links with every itinerary, and Estimated budget summary
 - End with: "Would you like to make any changes or adjustments?"
 
-Use platforms like:
-Flights: Skyscanner, MakeMyTrip  
-Hotels: Booking.com, Airbnb  
-Food: Zomato, TripAdvisor  
-Transport: Uber, RedBus, Zoomcar  
-Activities: Klook, Viator, GetYourGuide  
+Platforms: Trusted Platforms
+Flights: Skyscanner, MakeMyTrip etc.
+Hotels: Booking.com, Airbnb etc.
+Food: Zomato, TripAdvisor etc.
+Transport: Uber, RedBus, Zoomcar etc.
+Activities: Klook, Viator, GetYourGuide etc.
 """
 
             try:
