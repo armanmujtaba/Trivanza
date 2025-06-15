@@ -27,6 +27,14 @@ if "submitted" not in st.session_state:
 if "trip_context" not in st.session_state:
     st.session_state.trip_context = {}
 
+# ----------------- CUSTOM FUNCTION -----------------
+def get_response(messages):
+    response = client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=messages
+    )
+    return response.choices[0].message.content
+
 # ----------------- CHAT INPUT HANDLER -----------------
 user_input = st.chat_input("Say Hi to Trivanza or ask your travel-related question...")
 
@@ -66,17 +74,10 @@ Activities: {st.session_state.trip_context.get("activities", "")}
             messages += [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
 
             with st.spinner("✈️ Planning your travel response..."):
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=messages,
-                    temperature=0.7,
-                    max_tokens=1200
-                )
-                bot_reply = response.choices[0].message.content
+                bot_reply = get_response(messages)
                 st.session_state.messages.append({"role": "assistant", "content": bot_reply})
         except Exception as e:
             st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
-
 
 # ----------------- DISPLAY CHAT HISTORY -----------------
 for msg in st.session_state.messages:
@@ -93,7 +94,7 @@ if st.session_state.show_form and not st.session_state.submitted:
         with col1:
             origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi")
         with col2:
-            destination = st.text_input("📍 Destination", placeholder="e.g., Paris")
+            destination = st.text_input("📍 Destination", placeholder="e.g., Vietnam")
 
         col3, col4 = st.columns(2)
         with col3:
@@ -136,32 +137,24 @@ User wants a full travel plan with these inputs:
 - Budget: {budget}
 - Activities: {activities}
 
-📌 FORMAT:
-- Title (e.g., "6-Day Paris Getaway – Mid-Budget")
-- Daily breakdown with food, hotel, transport, activities
-- Estimated Prices, Booking links with every itinerary, and Estimated budget summary
-- End with: "Would you like to make any changes or adjustments?"
+📌 FORMAT EXAMPLE:
 
-Platforms: Trusted Platforms
-Flights: Skyscanner, MakeMyTrip etc.
-Hotels: Booking.com, Airbnb etc.
-Food: Zomato, TripAdvisor etc.
-Transport: Uber, RedBus, Zoomcar etc.
-Activities: Klook, Viator, GetYourGuide etc.
-"""
+6-Day Vietnam Adventure – Mid-Budget
+
+Based on your travel dates (1-7 June) and destination (Vietnam), create a personalized itinerary including:
+✅ Title + Summary
+✅ Daily breakdown with: Flights, Stay (Best Rated), Meals (Popular in area and best rated), Transport, Activities
+✅ Include costs and booking links (from popular & trusted platforms in user's country like India)
+✅ Final summary of daily and full budget
+✅ End with: "Would you like to make any changes or adjustments?"
+            """
 
             try:
                 with st.spinner("🎯 Crafting your itinerary..."):
-                    response = client.chat.completions.create(
-                        model="gpt-4",
-                        messages=[
-                            {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
-                            {"role": "user", "content": itinerary_prompt}
-                        ],
-                        temperature=0.8,
-                        max_tokens=1800
-                    )
-                    itinerary = response.choices[0].message.content
+                    itinerary = get_response([
+                        {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
+                        {"role": "user", "content": itinerary_prompt}
+                    ])
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
             except Exception as e:
                 st.session_state.messages.append({"role": "assistant", "content": f"❌ Error generating itinerary: {e}"})
