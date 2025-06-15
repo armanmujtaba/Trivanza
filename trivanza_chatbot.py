@@ -7,15 +7,11 @@ st.set_page_config(page_title="TRIVANZA - Your Smart Travel Buddy", layout="cent
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ------------- APP HEADER -------------
-st.markdown(
-    """
-    <div style="display: flex; align-items: center; gap: 10px;">
-        <img src="trivanza_logo.png" width="40">
-        <h2 style="margin: 0;">Trivanza – Smart Travel Planner</h2>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
+col1, col2 = st.columns([0.1, 0.9])
+with col1:
+    st.image("trivanza_logo.png", width=45)
+with col2:
+    st.markdown("## TRIVANZA - Your Smart Travel Buddy")
 
 # ------------- SESSION STATE -------------
 if "messages" not in st.session_state:
