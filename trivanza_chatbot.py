@@ -6,38 +6,30 @@ from datetime import date
 st.set_page_config(page_title="TRIVANZA – Your Smart Travel Buddy", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ----------------- CUSTOM HEADER -----------------
+# ----------------- STATIC HEADER -----------------
 st.markdown("""
 <style>
 .header-container {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     margin-bottom: 10px;
 }
 .header-logo {
     width: 45px;
     height: auto;
-    border-radius: 10px;
+    border-radius: 8px;
 }
 .header-title {
-    font-size: 1.6rem;
-    margin: 0;
+    font-size: 22px;
     font-weight: 600;
-}
-@media (max-width: 600px) {
-    .header-title {
-        font-size: 1.2rem;
-    }
-    .header-logo {
-        width: 35px;
-    }
+    margin: 0;
 }
 </style>
 
 <div class="header-container">
     <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" class="header-logo">
-    <h2 class="header-title">TRIVANZA – Your Smart Travel Buddy</h2>
+    <div class="header-title">TRIVANZA – Your Smart Travel Buddy</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -107,7 +99,7 @@ Activities: {st.session_state.trip_context.get("activities", "")}
             st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
 
 
-# ----------------- DISPLAY CHAT HISTORY (WITH CUSTOM AVATAR) -----------------
+# ----------------- CHAT DISPLAY (STATIC STYLE) -----------------
 for msg in st.session_state.messages:
     with st.container():
         if msg["role"] == "user":
@@ -115,8 +107,8 @@ for msg in st.session_state.messages:
         else:
             st.markdown(f"""
 <div style="display: flex; align-items: flex-start; gap: 10px;">
-    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="40" style="border-radius: 10px; margin-top: 5px;">
-    <div style="background-color: #f0f2f6; padding: 10px 12px; border-radius: 8px; max-width: 90%;">
+    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="40" style="border-radius: 6px; margin-top: 5px;">
+    <div style="background-color: #f0f2f6; padding: 10px 12px; border-radius: 6px; max-width: 90%;">
         {msg['content']}
     </div>
 </div>
@@ -150,7 +142,6 @@ if st.session_state.show_form and not st.session_state.submitted:
             st.session_state.submitted = True
             st.session_state.show_form = False
 
-            # Save to memory
             st.session_state.trip_context = {
                 "origin": origin,
                 "destination": destination,
