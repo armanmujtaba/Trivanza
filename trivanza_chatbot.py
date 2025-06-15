@@ -1,9 +1,19 @@
 import streamlit as st
+from datetime import date
 from openai import OpenAI
 
 # ----------------- Configuration -----------------
 st.set_page_config(page_title="Trivanza Smart Travel Planner", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+# ----------------- App Branding -----------------
+col1, col2 = st.columns([1, 5])
+with col1:
+    st.image("dddddddddd.png", width=70)  # Replace with your logo path or URL
+with col2:
+    st.markdown("## ✈️ TRIVANZA – Smart Travel Planner")
+
+st.markdown("---")
 
 # ----------------- Session State -----------------
 if "submitted" not in st.session_state:
@@ -34,29 +44,7 @@ if user_input and not st.session_state.submitted:
                     response = client.chat.completions.create(
                         model="gpt-4",
                         messages=[
-                            {"role": "system", "content": """
-You are TRIVANZA – a travel-specialized AI assistant.
-
-🎯 PURPOSE:
-Provide real-time, intelligent, personalized, and budget-conscious travel planning. Always give real cost estimates, daily itineraries, and booking links. Never answer non-travel questions. Always suggest best-rated options within the user's budget.
-
-✅ ALLOWED TOPICS:
-1. Travel problem-solving (cancellations, theft, health issues)
-2. Personalized itineraries (day-by-day, by budget, interest, events)
-3. Real-time alerts (weather, political unrest, flight delays)
-4. Smart packing assistant (checklists by weather & activity)
-5. Culture & Language (local etiquette, translations)
-6. Health & Insurance (local medical help, insurance)
-7. Sustainable travel tips (eco-stays, transport)
-8. Live translation help (signs, speech, receipts)
-9. Budget & currency planning
-10. Expense categories (flight, hotel, food, transport)
-
-❌ If asked something unrelated to travel, respond with:
-"This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
-
-🧾 FORMAT all responses in Markdown. Include booking links when suggesting flights, stays, food or activities.
-"""},
+                            {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
                             {"role": "user", "content": user_input}
                         ],
                         temperature=0.7,
@@ -72,7 +60,8 @@ with st.form("travel_form"):
     st.markdown("### 📝 Let's plan your trip!")
     origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi")
     destination = st.text_input("📍 Destination", placeholder="e.g., Vietnam")
-    travel_dates = st.text_input("📅 Travel Dates", placeholder="e.g., 1-7 July")
+    from_date = st.date_input("📅 Travel Start Date", value=date.today())
+    to_date = st.date_input("📅 Travel End Date", value=date.today())
     transport = st.selectbox("🛫 Mode of Transport", ["Flight", "Train", "Car", "Bus"])
     stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"])
     budget = st.text_input("💰 Budget (e.g., ₹50000 INR or $800 USD)")
@@ -94,7 +83,7 @@ Provide booking links, costs, realistic suggestions, and budget comparison.
 User Inputs:
 - Origin: {origin}
 - Destination: {destination}
-- Dates: {travel_dates}
+- Dates: From {from_date} To {to_date}
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
