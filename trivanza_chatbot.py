@@ -1,15 +1,15 @@
 import streamlit as st
-from datetime import date
 from openai import OpenAI
+from datetime import date
 
 # ----------------- Configuration -----------------
 st.set_page_config(page_title="Trivanza Smart Travel Planner", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# ----------------- App Branding -----------------
-col1, col2 = st.columns([1, 5])
+# ----------------- Branding -----------------
+col1, col2 = st.columns([1, 6])
 with col1:
-    st.image("trivanza_logo.png", width=70)  # Replace with your logo path or URL
+    st.image("trivanza_logo.png", width=60)  # Ensure this logo exists in your app directory
 with col2:
     st.markdown("## ✈️ TRIVANZA – Smart Travel Planner")
 
@@ -26,16 +26,16 @@ if user_input and not st.session_state.submitted:
     if user_input.strip().lower() in ["hi", "hello", "hey"]:
         with st.chat_message("assistant"):
             st.markdown("""
-                👋 **Welcome to Trivanza: Your Smart Travel Companion**  
-                I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?
+👋 **Welcome to Trivanza: Your Smart Travel Companion**  
+I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?
 
-                - What is your origin (starting location)?  
-                - What is your destination (where are you headed)?  
-                - What are your travel dates (from and to)?  
-                - What is your preferred mode of transport (flight, train, car, etc.)?  
-                - What are your accommodation preferences (hotel, hostel, etc.)?  
-                - What are your budget and currency type (INR, Dollar, Pound, etc.)?  
-                - Are there any specific activities or experiences you're looking to have during your trip?
+- What is your origin (starting location)?  
+- What is your destination (where are you headed)?  
+- What are your travel dates (from and to)?  
+- What is your preferred mode of transport (flight, train, car, etc.)?  
+- What are your accommodation preferences (hotel, hostel, etc.)?  
+- What are your budget and currency type (INR, Dollar, Pound, etc.)?  
+- Are there any specific activities or experiences you're looking to have during your trip?
             """)
     else:
         try:
@@ -44,7 +44,29 @@ if user_input and not st.session_state.submitted:
                     response = client.chat.completions.create(
                         model="gpt-4",
                         messages=[
-                            {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
+                            {"role": "system", "content": """
+You are TRIVANZA – a travel-specialized AI assistant.
+
+🎯 PURPOSE:
+Provide real-time, intelligent, personalized, and budget-conscious travel planning. Always give real cost estimates, daily itineraries, and booking links. Never answer non-travel questions. Always suggest best-rated options within the user's budget.
+
+✅ ALLOWED TOPICS:
+1. Travel problem-solving (cancellations, theft, health issues)
+2. Personalized itineraries (day-by-day, by budget, interest, events)
+3. Real-time alerts (weather, political unrest, flight delays)
+4. Smart packing assistant (checklists by weather & activity)
+5. Culture & Language (local etiquette, translations)
+6. Health & Insurance (local medical help, insurance)
+7. Sustainable travel tips (eco-stays, transport)
+8. Live translation help (signs, speech, receipts)
+9. Budget & currency planning
+10. Expense categories (flight, hotel, food, transport)
+
+❌ If asked something unrelated to travel, respond with:
+"This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
+
+🧾 FORMAT all responses in Markdown. Include booking links when suggesting flights, stays, food or activities.
+"""},
                             {"role": "user", "content": user_input}
                         ],
                         temperature=0.7,
@@ -58,10 +80,14 @@ if user_input and not st.session_state.submitted:
 # ----------------- Travel Form & Itinerary -----------------
 with st.form("travel_form"):
     st.markdown("### 📝 Let's plan your trip!")
+
     origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi")
     destination = st.text_input("📍 Destination", placeholder="e.g., Vietnam")
-    from_date = st.date_input("📅 Travel Start Date", value=date.today())
-    to_date = st.date_input("📅 Travel End Date", value=date.today())
+
+    # NEW DATE PICKERS
+    from_date = st.date_input("📅 Start Date", min_value=date.today())
+    to_date = st.date_input("📅 End Date", min_value=from_date)
+
     transport = st.selectbox("🛫 Mode of Transport", ["Flight", "Train", "Car", "Bus"])
     stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"])
     budget = st.text_input("💰 Budget (e.g., ₹50000 INR or $800 USD)")
@@ -71,6 +97,7 @@ with st.form("travel_form"):
 
     if submitted:
         st.session_state.submitted = True
+        travel_dates = f"{from_date.strftime('%d %b %Y')} to {to_date.strftime('%d %b %Y')}"
 
         prompt = f"""
 You are TRIVANZA – a travel-specialized AI assistant.
@@ -83,7 +110,7 @@ Provide booking links, costs, realistic suggestions, and budget comparison.
 User Inputs:
 - Origin: {origin}
 - Destination: {destination}
-- Dates: From {from_date} To {to_date}
+- Dates: {travel_dates}
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
