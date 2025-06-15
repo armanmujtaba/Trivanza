@@ -56,6 +56,7 @@ with st.form("trip_form"):
 
     submit = st.form_submit_button("Generate Itinerary")
 
+# ----------------- FORM HANDLER -----------------
 if submit:
     days = (to_date - from_date).days + 1
     prompt = f"""
@@ -82,10 +83,14 @@ Use friendly tone. Optimize for budget given by user. Use INR or relevant curren
             {"role": "system", "content": base_system_prompt},
             {"role": "user", "content": prompt}
         ])
+        st.session_state.messages.append({"role": "user", "content": prompt})
         st.session_state.messages.append({"role": "assistant", "content": reply})
 
-# ----------------- DISPLAY RESPONSE -----------------
-for msg in st.session_state.messages:
-    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
-    with st.chat_message(msg["role"], avatar=avatar):
-        st.markdown(msg["content"])
+# ----------------- CHAT UI -----------------
+if st.session_state.messages:
+    st.markdown("---")
+    st.markdown("### 💬 Chat History")
+    for msg in st.session_state.messages:
+        avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
+        with st.chat_message(msg["role"], avatar=avatar):
+            st.markdown(msg["content"])
