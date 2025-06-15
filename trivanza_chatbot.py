@@ -1,96 +1,73 @@
 import streamlit as st
-import re
+import openai
 
-# Page setup
-st.set_page_config(page_title="Trivanza Travel Bot", page_icon="✈️")
-st.title("🧳 Trivanza: Your Smart Travel Companion")
+# ----------------- Configuration -----------------
+st.set_page_config(page_title="Trivanza Smart Travel Planner")
+openai.api_key = "your-openai-api-key"  # Replace with your OpenAI key
 
-# Initialize state
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "form_filled" not in st.session_state:
-    st.session_state.form_filled = False
-if "travel_response_generated" not in st.session_state:
-    st.session_state.travel_response_generated = False
-if "travel_form_data" not in st.session_state:
-    st.session_state.travel_form_data = {}
+# ----------------- Session State -----------------
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
 
-# Greeting detector
-def is_greeting(text):
-    return bool(re.search(r"\b(hi|hello|hey|namaste|salaam|yo|hola|greetings)\b", text, re.I))
+# ----------------- Chat Input & Greeting -----------------
+user_input = st.chat_input("Say hi to Trivanza!")
 
-# Sample Itinerary Generator
-def generate_itinerary(data):
-    return f"""**6-Day {data['destination']} Adventure – Mid-Budget**
+if user_input and not st.session_state.submitted:
+    if "hi" in user_input.lower() or "hello" in user_input.lower():
+        with st.chat_message("assistant"):
+            st.markdown("""
+                ### 👋 Welcome to Trivanza: Your Smart Travel Companion  
+                I'm excited to help you with your travel plans. To provide the best experience, could you please share a few details with me?
+            """)
 
-Based on your travel dates ({data['from_date']} to {data['to_date']}) and destination ({data['destination']}), I've created a personalized itinerary for you. Since you're traveling from {data['origin']}, I've included travel details.
+        with st.form("travel_form"):
+            origin = st.text_input("🌍 What is your origin (starting location)?")
+            destination = st.text_input("📍 What is your destination (where are you headed)?")
+            travel_dates = st.text_input("📅 What are your travel dates (from and to)?")
+            transport = st.selectbox("🛫 Preferred mode of transport", ["Flight", "Train", "Car", "Bus"])
+            stay = st.selectbox("🏨 Accommodation preference", ["Hotel", "Hostel", "Airbnb", "Resort"])
+            budget = st.text_input("💰 Budget and currency (e.g., ₹50000 INR or $800 USD)")
+            activities = st.text_area("🎯 Activities or experiences you're looking for?")
 
-**Day 1: Arrival in {data['destination']}**
-✈️ Travel from {data['origin']} to {data['destination']}
-🏨 Stay at a {data['accommodation']} – Budget: {data['budget']}
-🎯 Activities: Arrival, check-in, explore nearby markets
+            submitted = st.form_submit_button("Get My Travel Plan")
 
-**Day 2 to Day 5:** Sightseeing, cultural tours, and specific activities like:
-🎡 {data['activities'] or "City tour, local cuisine, shopping"}
+            if submitted:
+                st.session_state.submitted = True
 
-**Day 6: Return to {data['origin']}**
-✈️ Return flight or transport
+                # Build Prompt for AI
+                prompt = f"""
+You are a travel expert. Create a detailed day wise travel itinerary for a user traveling from {origin} to {destination} during {travel_dates}.
+Preferences:
+- Transport: {transport}
+- Stay: {stay}
+- Budget: {budget}
+- Activities: {activities}
 
-💰 Approx. Budget: {data['budget']}
-Let me know if you'd like to adjust anything!
-"""
+Include:
+- Day-wise plan with emoji
+- Flight/train/transport details with prices
+- Hotel/stay suggestions with prices and booking links
+- Meal or activity suggestions with links
+- Total daily cost and overall budget
+- End with: "Would you like to make any changes or adjustments?"
 
-# Display previous messages
-for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
-        st.markdown(msg["content"])
+Format everything cleanly using Markdown.
+                """
 
-# User input handler
-user_input = st.chat_input("Ask me anything about your trip...")
+                with st.spinner("🧭 Creating your personalized itinerary..."):
+                    try:
+                        response = openai.ChatCompletion.create(
+                            model="gpt-4",
+                            messages=[
+                                {"role": "system", "content": "You are an expert AI travel planner."},
+                                {"role": "user", "content": prompt}
+                            ],
+                            temperature=0.7,
+                            max_tokens=1800
+                        )
 
-if user_input:
-    st.session_state.messages.append({"role": "user", "content": user_input})
+                        itinerary = response['choices'][0]['message']['content']
+                        st.chat_message("assistant").markdown(itinerary)
 
-    if is_greeting(user_input) and not st.session_state.form_filled:
-        greeting_response = (
-            "Welcome to Trivanza: Your Smart Travel Companion\n"
-            "I'm excited to help you with your travel plans. "
-            "To provide you with the best possible assistance, could you please share some details with me?"
-        )
-        st.session_state.messages.append({"role": "assistant", "content": greeting_response})
-        st.rerun()
-
-# Show form if not already filled
-if not st.session_state.form_filled:
-    with st.form("travel_form"):
-        st.subheader("📝 Travel Preferences Form")
-        origin = st.text_input("What is your origin (starting location)?")
-        destination = st.text_input("What is your destination (where are you headed)?")
-        from_date = st.date_input("Travel start date")
-        to_date = st.date_input("Travel end date")
-        transport = st.selectbox("Preferred mode of transport", ["Flight", "Train", "Car", "Bus"])
-        accommodation = st.selectbox("Accommodation preference", ["Hotel", "Hostel", "Guest House", "Airbnb"])
-        budget = st.text_input("Budget & Currency (e.g., ₹50000 INR)")
-        activities = st.text_area("Any specific activities/experiences?")
-
-        submitted = st.form_submit_button("Submit")
-        if submitted:
-            st.session_state.travel_form_data = {
-                "origin": origin,
-                "destination": destination,
-                "from_date": from_date,
-                "to_date": to_date,
-                "transport": transport,
-                "accommodation": accommodation,
-                "budget": budget,
-                "activities": activities
-            }
-            st.session_state.form_filled = True
-            st.rerun()
-
-# Generate itinerary once after form submission
-if st.session_state.form_filled and not st.session_state.travel_response_generated:
-    itinerary = generate_itinerary(st.session_state.travel_form_data)
-    st.session_state.messages.append({"role": "assistant", "content": itinerary})
-    st.session_state.travel_response_generated = True
-    st.rerun()
+                    except Exception as e:
+                        st.error(f"🚨 Error generating itinerary: {e}")
