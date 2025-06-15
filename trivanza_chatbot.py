@@ -9,7 +9,7 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 # ----------------- App Branding -----------------
 col1, col2 = st.columns([1, 5])
 with col1:
-    st.image("dddddddddd.png", width=70)  # Replace with your logo path or URL
+    st.image("trivanza_logo.png", width=70)  # Replace with your logo path or URL
 with col2:
     st.markdown("## ✈️ TRIVANZA – Smart Travel Planner")
 
