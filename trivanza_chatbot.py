@@ -1,107 +1,96 @@
 import streamlit as st
-from openai import OpenAI
 import re
 
-# Initialize OpenAI client
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Page setup
+st.set_page_config(page_title="Trivanza Travel Bot", page_icon="✈️")
+st.title("🧳 Trivanza: Your Smart Travel Companion")
 
-# Set Streamlit page config and title
-st.set_page_config(page_title="Trivanza: Your Smart Travel Companion")
-st.title("✈️ Trivanza Travel Chatbot")
-
-# Initialize session state
+# Initialize state
 if "messages" not in st.session_state:
-    st.session_state.messages = [{
-        "role": "system",
-        "content": """
-You are TRIVANZA, a smart travel assistant. Only respond to travel-related questions.
-Reject any unrelated query politely with:
-"This chat is strictly about travel. Please ask travel-related questions only."
-
-Your responsibilities include:
-1. Travel problem solving (flights, luggage, scams, emergencies)
-2. Personalized itineraries with bookings and costs
-3. Travel alerts (weather, delays)
-4. Packing assistant
-5. Local language & etiquette support
-6. Health & insurance
-7. Sustainable travel tips
-8. Multi-language translator
-9. Budget planner & currency
-10. Expense breakdown by category
-"""
-    }]
+    st.session_state.messages = []
+if "form_filled" not in st.session_state:
+    st.session_state.form_filled = False
+if "travel_response_generated" not in st.session_state:
+    st.session_state.travel_response_generated = False
+if "travel_form_data" not in st.session_state:
+    st.session_state.travel_form_data = {}
 
 # Greeting detector
-def is_greeting(msg):
-    return re.match(r"^(hi|hello|hey|namaste|salaam|greetings|good\s(morning|evening|afternoon))\b", msg.strip().lower()) is not None
+def is_greeting(text):
+    return bool(re.search(r"\b(hi|hello|hey|namaste|salaam|yo|hola|greetings)\b", text, re.I))
 
-# Get response from OpenAI
-def get_response(messages):
-    response = client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=messages,
-        temperature=0.7
-    )
-    return response.choices[0].message.content
+# Sample Itinerary Generator
+def generate_itinerary(data):
+    return f"""**6-Day {data['destination']} Adventure – Mid-Budget**
 
-# Display chat history
-for msg in st.session_state.messages[1:]:
+Based on your travel dates ({data['from_date']} to {data['to_date']}) and destination ({data['destination']}), I've created a personalized itinerary for you. Since you're traveling from {data['origin']}, I've included travel details.
+
+**Day 1: Arrival in {data['destination']}**
+✈️ Travel from {data['origin']} to {data['destination']}
+🏨 Stay at a {data['accommodation']} – Budget: {data['budget']}
+🎯 Activities: Arrival, check-in, explore nearby markets
+
+**Day 2 to Day 5:** Sightseeing, cultural tours, and specific activities like:
+🎡 {data['activities'] or "City tour, local cuisine, shopping"}
+
+**Day 6: Return to {data['origin']}**
+✈️ Return flight or transport
+
+💰 Approx. Budget: {data['budget']}
+Let me know if you'd like to adjust anything!
+"""
+
+# Display previous messages
+for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-# Trigger form display
-show_form = False
-
-# Chat input box
-user_input = st.chat_input("Ask me about your travel...")
+# User input handler
+user_input = st.chat_input("Ask me anything about your trip...")
 
 if user_input:
-    with st.chat_message("user"):
-        st.markdown(user_input)
     st.session_state.messages.append({"role": "user", "content": user_input})
 
-    if is_greeting(user_input):
-        with st.chat_message("assistant"):
-            st.markdown("**Welcome to Trivanza: Your Smart Travel Companion**\nI'm excited to help you with your travel plans. Please fill out the form below.")
-        show_form = True
-    else:
-        assistant_reply = get_response(st.session_state.messages)
-        st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
-        with st.chat_message("assistant"):
-            st.markdown(assistant_reply)
+    if is_greeting(user_input) and not st.session_state.form_filled:
+        greeting_response = (
+            "Welcome to Trivanza: Your Smart Travel Companion\n"
+            "I'm excited to help you with your travel plans. "
+            "To provide you with the best possible assistance, could you please share some details with me?"
+        )
+        st.session_state.messages.append({"role": "assistant", "content": greeting_response})
+        st.rerun()
 
-# Display form only after greeting
-if show_form or st.session_state.get("form_filled", False):
+# Show form if not already filled
+if not st.session_state.form_filled:
     with st.form("travel_form"):
+        st.subheader("📝 Travel Preferences Form")
         origin = st.text_input("What is your origin (starting location)?")
         destination = st.text_input("What is your destination (where are you headed)?")
-        dates = st.text_input("What are your travel dates (from and to)?")
-        transport = st.text_input("Preferred transport (flight, train, car, etc.)?")
-        accommodation = st.text_input("Accommodation preferences (hotel, hostel, etc.)?")
-        budget = st.text_input("Budget and currency type (INR, Dollar, Pound, etc.)?")
-        activities = st.text_area("Any specific activities or experiences you're looking for?")
+        from_date = st.date_input("Travel start date")
+        to_date = st.date_input("Travel end date")
+        transport = st.selectbox("Preferred mode of transport", ["Flight", "Train", "Car", "Bus"])
+        accommodation = st.selectbox("Accommodation preference", ["Hotel", "Hostel", "Guest House", "Airbnb"])
+        budget = st.text_input("Budget & Currency (e.g., ₹50000 INR)")
+        activities = st.text_area("Any specific activities/experiences?")
+
         submitted = st.form_submit_button("Submit")
-
         if submitted:
-            st.session_state["form_filled"] = True
-            form_message = f"""
-I want to plan a trip with the following details:
+            st.session_state.travel_form_data = {
+                "origin": origin,
+                "destination": destination,
+                "from_date": from_date,
+                "to_date": to_date,
+                "transport": transport,
+                "accommodation": accommodation,
+                "budget": budget,
+                "activities": activities
+            }
+            st.session_state.form_filled = True
+            st.rerun()
 
-- Origin: {origin}
-- Destination: {destination}
-- Dates: {dates}
-- Transport: {transport}
-- Accommodation: {accommodation}
-- Budget: {budget}
-- Activities: {activities}
-            """.strip()
-
-            with st.chat_message("user"):
-                st.markdown(form_message)
-            st.session_state.messages.append({"role": "user", "content": form_message})
-
-            assistant_reply = get_response(st.session_state.messages)
-            st.session_state.messages.append({"role": "assistant", "content": assistant_reply})
-            with st.chat_message("assistant"):
-                st.markdown(assistant_reply)
+# Generate itinerary once after form submission
+if st.session_state.form_filled and not st.session_state.travel_response_generated:
+    itinerary = generate_itinerary(st.session_state.travel_form_data)
+    st.session_state.messages.append({"role": "assistant", "content": itinerary})
+    st.session_state.travel_response_generated = True
+    st.rerun()
