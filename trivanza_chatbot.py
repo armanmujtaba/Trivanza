@@ -9,7 +9,7 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 # ------------- APP HEADER -------------
 col1, col2 = st.columns([0.1, 0.9])
 with col1:
-    st.image("trivanza_logo.png", width=45)
+    st.image("trivanza_logo.png", width=60)
 with col2:
     st.markdown("## TRIVANZA - Your Smart Travel Buddy")
 
