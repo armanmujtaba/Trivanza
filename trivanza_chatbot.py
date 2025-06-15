@@ -11,7 +11,7 @@ col1, col2 = st.columns([1, 6])
 with col1:
     st.image("trivanza_logo.png", width=60)  # Ensure this logo exists in your app directory
 with col2:
-    st.markdown("## ✈️ TRIVANZA – Smart Travel Planner")
+    st.markdown("TRIVANZA – Your Smart Travel Companion")
 
 st.markdown("---")
 
