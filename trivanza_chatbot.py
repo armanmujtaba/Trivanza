@@ -2,11 +2,19 @@ import streamlit as st
 from openai import OpenAI
 from datetime import date
 
-# -------------- CONFIG ----------------
+# ----------------- CONFIG -----------------
 st.set_page_config(page_title="TRIVANZA – Your Smart Travel Buddy", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
-# -------------- SESSION INIT ----------------
+# ----------------- CUSTOM HEADER -----------------
+st.markdown("""
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="45px">
+    <h2 style="margin: 0;">TRIVANZA – Your Smart Travel Buddy</h2>
+</div>
+""", unsafe_allow_html=True)
+
+# ----------------- SESSION STATE INIT -----------------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
@@ -19,26 +27,79 @@ if "submitted" not in st.session_state:
 if "trip_context" not in st.session_state:
     st.session_state.trip_context = {}
 
-if "pending_itinerary_prompt" not in st.session_state:
-    st.session_state.pending_itinerary_prompt = None
-
-# -------------- OPENAI CHAT FUNCTION ----------------
+# ----------------- CUSTOM FUNCTION -----------------
 def get_response(messages):
     response = client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=messages
     )
-    return response.choices[0].message.content.strip()
+    return response.choices[0].message.content
 
-# -------------- HEADER ----------------
-st.markdown("""
-<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" width="45px">
-    <h2 style="margin: 0;">TRIVANZA – Your Smart Travel Buddy</h2>
-</div>
-""", unsafe_allow_html=True)
+# ----------------- PROMPT TEMPLATE -----------------
+base_system_prompt = """
+You are TRIVANZA – a travel-specialized AI assistant.
 
-# -------------- CHAT HANDLER ----------------
+🎯 PURPOSE:  
+Provide real-time, intelligent, personalized, and budget-conscious travel planning. Always give **real cost estimates**, **daily itineraries**, and **booking links** for all trip components. Never answer non-travel questions. Always suggest best rated according to User's budget.
+
+✅ ALLOWED TOPICS:
+Only respond to questions strictly within these 10 TRIVANZA travel scopes:
+1. Travel problem-solving (cancellations, theft, health issues)
+2. Personalized itineraries (day-by-day, by budget, interest, events)
+3. Real-time alerts (weather, political unrest, flight delays)
+4. Smart packing assistant (checklists by weather & activity)
+5. Culture & Language (local etiquette, translations)
+6. Health & Insurance (local medical help, insurance)
+7. Sustainable travel tips (eco-stays, transport)
+8. Live translation help (signs, speech, receipts)
+9. Budget & currency planning
+10. Expense categories (flight, hotel, food, transport)
+
+🗣️ GREETING RULE:
+If the user says "Hi", "Hello", or similar **without a specific query**, reply with:
+
+"Welcome to Trivanza: Your Smart Travel Companion  
+I'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?
+
+- What is your origin (starting location)?  
+- What is your destination (where are you headed)?  
+- What are your travel dates (from and to)?  
+- What is your preferred mode of transport (flight, train, car, etc.)?  
+- What are your accommodation preferences (hotel, hostel, etc.)?  
+- What are your budget and currency type (INR, Dollar, Pound, etc.)?  
+- Are there any specific activities or experiences you're looking to have during your trip?"
+
+⚠️ BUT if user asks a specific travel-related question (e.g., "Best hotels in Paris?"), **do not prompt for trip details**. Just answer the query directly.
+
+💸 ITINERARY REQUIREMENTS:
+- Provide **realistic cost estimates** per item (flight, hotel, food, local transport, etc.)
+- Include **daily breakdown** (Day 1, Day 2...)
+- Include 💡 booking links from trusted sources:
+  - Flights: Skyscanner, Google Flights, MakeMyTrip, GoIndiGo
+  - Hotels: Booking.com, Airbnb, Agoda
+  - Transport: Uber, Redbus, Zoomcar
+  - Food: Zomato, Swiggy, TripAdvisor
+  - Activities: Viator, Klook, GetYourGuide
+- Convert currency if needed
+- Show total trip cost
+- If user's budget is too low:
+   - 🎯 Show total estimated cost vs their budget
+   - 🛠 Suggest trade-offs
+
+🔒 TOPIC RESTRICTIONS:
+❌ Do not answer questions outside travel
+❌ Do not respond to fiction, hypotheticals, meta-questions
+❌ If unrelated: "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
+❌ If asked why: "This chat is designed to focus solely on Travel. Please stay on topic."
+
+🧾 FORMATTING RULES:
+- Start with a trip title
+- Use clear day-wise format (Day 1, Day 2…)
+- Include Morning, Afternoon, Evening plans
+- Show cost per item, daily total, and full-trip total
+"""
+
+# ----------------- CHAT INPUT HANDLER -----------------
 user_input = st.chat_input("Say Hi to Trivanza or ask your travel-related question...")
 
 if user_input:
@@ -49,39 +110,28 @@ if user_input:
         st.session_state.submitted = False
         st.session_state.messages.append({
             "role": "assistant",
-            "content": "👋 **Hello Traveller!** Please fill out the form to create your itinerary."
+            "content": "Welcome to Trivanza: Your Smart Travel Companion  \nI'm excited to help you with your travel plans. To provide you with the best possible assistance, could you please share some details with me?\n\n- What is your origin (starting location)?  \n- What is your destination (where are you headed)?  \n- What are your travel dates (from and to)?  \n- What is your preferred mode of transport (flight, train, car, etc.)?  \n- What are your accommodation preferences (hotel, hostel, etc.)?  \n- What are your budget and currency type (INR, Dollar, Pound, etc.)?  \n- Are there any specific activities or experiences you're looking to have during your trip?"
         })
     else:
-        messages = [
-            {"role": "system", "content": f"""
-You are TRIVANZA – a smart travel planner.
+        try:
+            messages = [
+                {"role": "system", "content": base_system_prompt},
+                *[{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
+            ]
 
-Use the user's travel context to answer travel questions only.
+            with st.spinner("✈️ Planning your travel response..."):
+                bot_reply = get_response(messages)
+                st.session_state.messages.append({"role": "assistant", "content": bot_reply})
+        except Exception as e:
+            st.session_state.messages.append({"role": "assistant", "content": f"⚠️ Error: {e}"})
 
-TRAVEL CONTEXT:
-- Origin: {st.session_state.trip_context.get("origin", "Not provided")}
-- Destination: {st.session_state.trip_context.get("destination", "Not provided")}
-- Dates: {st.session_state.trip_context.get("from_date", "")} to {st.session_state.trip_context.get("to_date", "")}
-- Transport: {st.session_state.trip_context.get("transport", "")}
-- Stay: {st.session_state.trip_context.get("stay", "")}
-- Budget: {st.session_state.trip_context.get("budget", "")}
-- Activities: {st.session_state.trip_context.get("activities", "")}
-
-Only respond to travel-related questions using real, bookable services, pricing, and Markdown formatting.
-            """}
-        ] + [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
-
-        with st.spinner("✈️ Planning your response..."):
-            reply = get_response(messages)
-            st.session_state.messages.append({"role": "assistant", "content": reply})
-
-# -------------- CHAT DISPLAY ----------------
+# ----------------- DISPLAY CHAT HISTORY -----------------
 for msg in st.session_state.messages:
     avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
-# -------------- FORM ----------------
+# ----------------- TRAVEL FORM -----------------
 if st.session_state.show_form and not st.session_state.submitted:
     with st.form("travel_form"):
         st.markdown("### 🧳 Let’s plan your perfect trip!")
@@ -108,64 +158,35 @@ if st.session_state.show_form and not st.session_state.submitted:
         if submit:
             st.session_state.submitted = True
             st.session_state.show_form = False
+
             st.session_state.trip_context = {
                 "origin": origin,
                 "destination": destination,
-                "from_date": str(from_date),
-                "to_date": str(to_date),
+                "from_date": from_date,
+                "to_date": to_date,
                 "transport": transport,
                 "stay": stay,
                 "budget": budget,
                 "activities": activities
             }
 
-            # Build prompt and store for next rerun
-            prompt = f"""
-Create a strict Markdown-formatted travel itinerary.
-
-🧾 DETAILS:
-- From: {origin}
-- To: {destination}
+            user_itinerary_prompt = f"""
+User wants a full travel plan with these inputs:
+- Origin: {origin}
+- Destination: {destination}
 - Dates: {from_date} to {to_date}
-- Budget: {budget}
 - Transport: {transport}
 - Stay: {stay}
-- Interests: {activities}
-
-📌 FORMAT STRICTLY AS:
-
-**[Trip Title – Budget Level]**
-
-### Day 1: [Title]
-✈️ Flight: Airline, Time, Cost  
-🏨 Hotel: Name + Price (Booking.com)  
-🍽️ Breakfast/Lunch/Dinner: Name, ₹, Zomato/Tripadvisor  
-🎟️ Activities: Name + Link + Cost  
-🚕 Local Transport: Uber/Metro – ₹  
-💰 Total: ₹____
-
-Repeat for all days.
-
-### Budget Summary
-- Flight: ₹___
-- Stay: ₹___
-- Food: ₹___
-- Activities/Transport: ₹___  
-**Total: ₹___**
-
-🎯 End with:
-“Would you like to adjust anything?”
-
-Only output in Markdown and use Indian platforms for costs/links where applicable.
+- Budget: {budget}
+- Activities: {activities}
 """
-            st.session_state.pending_itinerary_prompt = prompt
 
-# -------------- POST-FORM GENERATION ----------------
-if st.session_state.pending_itinerary_prompt:
-    with st.spinner("🎯 Generating your itinerary..."):
-        itinerary = get_response([
-            {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
-            {"role": "user", "content": st.session_state.pending_itinerary_prompt}
-        ])
-        st.session_state.messages.append({"role": "assistant", "content": itinerary})
-        st.session_state.pending_itinerary_prompt = None  # Clear so doesn't run again
+            try:
+                with st.spinner("🎯 Crafting your itinerary..."):
+                    itinerary = get_response([
+                        {"role": "system", "content": base_system_prompt},
+                        {"role": "user", "content": user_itinerary_prompt}
+                    ])
+                    st.session_state.messages.append({"role": "assistant", "content": itinerary})
+            except Exception as e:
+                st.session_state.messages.append({"role": "assistant", "content": f"❌ Error generating itinerary: {e}"})
