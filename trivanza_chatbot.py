@@ -42,6 +42,16 @@ if user_input:
         })
     else:
         try:
+            # Convert dates to strings for better context formatting
+            from_date_str = st.session_state.trip_context.get("from_date", "")
+            to_date_str = st.session_state.trip_context.get("to_date", "")
+            
+            # Format dates properly if they exist
+            if from_date_str and hasattr(from_date_str, 'strftime'):
+                from_date_str = from_date_str.strftime("%Y-%m-%d")
+            if to_date_str and hasattr(to_date_str, 'strftime'):
+                to_date_str = to_date_str.strftime("%Y-%m-%d")
+            
             messages = [
                 {"role": "system", "content": f"""
 You are TRIVANZA – a travel-specialized AI assistant.
@@ -52,7 +62,7 @@ Provide personalized, real-world, budget-aware travel guidance and itineraries. 
 📌 CONTEXT:
 Origin: {st.session_state.trip_context.get("origin", "Not provided")}
 Destination: {st.session_state.trip_context.get("destination", "Not provided")}
-Dates: {st.session_state.trip_context.get("from_date", "")} to {st.session_state.trip_context.get("to_date", "")}
+Travel Duration: {from_date_str} to {to_date_str}
 Transport: {st.session_state.trip_context.get("transport", "")}
 Stay: {st.session_state.trip_context.get("stay", "")}
 Budget: {st.session_state.trip_context.get("budget", "")}
@@ -61,6 +71,7 @@ Activities: {st.session_state.trip_context.get("activities", "")}
 ✅ Answer ONLY travel-related questions.
 ✅ Suggest costed, bookable activities.
 ✅ Use Markdown format. Do not repeat old answers unless modifications requested.
+✅ Always consider the full travel duration from start date to end date when making recommendations.
                 """}
             ]
             messages += [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
@@ -87,7 +98,7 @@ for msg in st.session_state.messages:
 # ----------------- TRAVEL FORM -----------------
 if st.session_state.show_form and not st.session_state.submitted:
     with st.form("travel_form"):
-        st.markdown("### 🧳 Let’s plan your perfect trip!")
+        st.markdown("### 🧳 Let's plan your perfect trip!")
 
         col1, col2 = st.columns(2)
         with col1:
@@ -109,37 +120,52 @@ if st.session_state.show_form and not st.session_state.submitted:
         submit = st.form_submit_button("Generate Itinerary")
 
         if submit:
-            st.session_state.submitted = True
-            st.session_state.show_form = False
+            # Validate dates
+            if to_date < from_date:
+                st.error("❌ End date must be after start date!")
+            else:
+                st.session_state.submitted = True
+                st.session_state.show_form = False
 
-            # Save to memory
-            st.session_state.trip_context = {
-                "origin": origin,
-                "destination": destination,
-                "from_date": from_date,
-                "to_date": to_date,
-                "transport": transport,
-                "stay": stay,
-                "budget": budget,
-                "activities": activities
-            }
+                # Calculate trip duration
+                trip_duration = (to_date - from_date).days + 1  # +1 to include both start and end days
+                
+                # Save to memory with proper date formatting
+                st.session_state.trip_context = {
+                    "origin": origin,
+                    "destination": destination,
+                    "from_date": from_date,
+                    "to_date": to_date,
+                    "trip_duration": trip_duration,
+                    "transport": transport,
+                    "stay": stay,
+                    "budget": budget,
+                    "activities": activities
+                }
 
-            itinerary_prompt = f"""
+                # Format dates for the prompt
+                from_date_formatted = from_date.strftime("%B %d, %Y")
+                to_date_formatted = to_date.strftime("%B %d, %Y")
+
+                itinerary_prompt = f"""
 You are TRIVANZA – a travel-specialized AI assistant.
 
 User wants a full travel plan with these inputs:
 - Origin: {origin}
 - Destination: {destination}
-- Dates: {from_date} to {to_date}
+- Travel Dates: {from_date_formatted} to {to_date_formatted} ({trip_duration} days)
 - Transport: {transport}
 - Stay: {stay}
 - Budget: {budget}
 - Activities: {activities}
 
+📌 IMPORTANT: Create a {trip_duration}-day itinerary covering the ENTIRE duration from {from_date_formatted} to {to_date_formatted}.
+
 📌 FORMAT:
-- Title (e.g., "6-Day Paris Getaway – Mid-Budget")
-- Daily breakdown with food, hotel, transport, activities
-- Estimated Prices, Booking links with every itinerary, and Estimated budget summary
+- Title (e.g., "{trip_duration}-Day {destination} Getaway – Mid-Budget")
+- Day-by-day breakdown for ALL {trip_duration} days with food, hotel, transport, activities
+- Estimated Prices and Booking links for each day
+- Total estimated budget summary
 - End with: "Would you like to make any changes or adjustments?"
 
 Platforms: Trusted Platforms in user area
@@ -148,20 +174,22 @@ Hotels: Booking.com, Airbnb etc.
 Food: Zomato, TripAdvisor etc.
 Transport: Uber, RedBus, Zoomcar etc.
 Activities: Klook, Viator, GetYourGuide etc.
+
+Make sure to cover every single day from day 1 to day {trip_duration}.
 """
 
-            try:
-                with st.spinner("🎯 Crafting your itinerary..."):
-                    response = client.chat.completions.create(
-                        model="gpt-4",
-                        messages=[
-                            {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
-                            {"role": "user", "content": itinerary_prompt}
-                        ],
-                        temperature=0.8,
-                        max_tokens=1800
-                    )
-                    itinerary = response.choices[0].message.content
-                    st.session_state.messages.append({"role": "assistant", "content": itinerary})
-            except Exception as e:
-                st.session_state.messages.append({"role": "assistant", "content": f"❌ Error generating itinerary: {e}"})
+                try:
+                    with st.spinner("🎯 Crafting your itinerary..."):
+                        response = client.chat.completions.create(
+                            model="gpt-4",
+                            messages=[
+                                {"role": "system", "content": "You are TRIVANZA – a travel-specialized AI assistant."},
+                                {"role": "user", "content": itinerary_prompt}
+                            ],
+                            temperature=0.8,
+                            max_tokens=1800
+                        )
+                        itinerary = response.choices[0].message.content
+                        st.session_state.messages.append({"role": "assistant", "content": itinerary})
+                except Exception as e:
+                    st.session_state.messages.append({"role": "assistant", "content": f"❌ Error generating itinerary: {e}"})
