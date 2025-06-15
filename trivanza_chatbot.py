@@ -67,7 +67,7 @@ Activities: {st.session_state.trip_context.get("activities", "")}
 
             with st.spinner("✈️ Planning your travel response..."):
                 response = client.chat.completions.create(
-                    model="gpt-4",
+                    model="gpt-3.5-turbo",
                     messages=messages,
                     temperature=0.7,
                     max_tokens=1200
@@ -142,7 +142,7 @@ User wants a full travel plan with these inputs:
 - Estimated Prices, Booking links with every itinerary, and Estimated budget summary
 - End with: "Would you like to make any changes or adjustments?"
 
-Platforms: Trusted Platforms
+Platforms: Trusted Platforms in user area
 Flights: Skyscanner, MakeMyTrip etc.
 Hotels: Booking.com, Airbnb etc.
 Food: Zomato, TripAdvisor etc.
