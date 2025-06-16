@@ -129,11 +129,8 @@ system_content = (
     "   - Always state 'per person' and multiply for total day cost if group size >1.\n"
     "   - At end of EACH day, show both per person and total cost if group size >1.\n"
     "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
-    "5. After all days, show a bold Markdown cost breakdown table:\n"
-    "   | Day    | Per Person | Group |\n"
-    "   |--------|------------|-------|\n"
-    "   | ...    | ...        | ...   |\n"
-    "   | Total  | ...        | ...   |\n"
+    "5. After all days, show a bold Markdown cost breakdown:\n"
+    "Total Trip Cost: ₹<per person>/<total for all>\n"
     "6. Add a Packing Checklist for the destination in the travel month (based on weather & activities).\n"
     "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
     "8. Add a friendly Pro Tip at the end.\n"
@@ -141,13 +138,10 @@ system_content = (
     "10. Never repeat the prompt or any instructions in your output."
 )
 
-greeting_message = """Welcome to Trivanza: Your Smart Travel Companion  
-I'm excited to help you with your travel plans. Could you please share some details like:  
-- Where you're starting and going  
-- Travel dates  
-- Transport and accommodation preferences  
-- Budget and currency  
-- Any activities you're excited about?"""
+greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
+I'm excited to help you with your travel plans.
+- Submit form for trip planning  
+- Use chat box for your travel related queries"""
 
 fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
