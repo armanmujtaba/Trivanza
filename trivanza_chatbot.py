@@ -79,6 +79,10 @@ def post_process_itinerary(text):
     text = re.sub(r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•-])', r'\n\1', text)
     # Remove excessive newlines
     text = re.sub(r'\n{3,}', r'\n\n', text)
+    # Fix Markdown link formatting if AI outputs [Book: url] or [Book : url]
+    text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]]+)\]', r'[Book](\2)', text)
+    # Ensure only valid markdown links remain
+    text = re.sub(r'\[([^\[\]]+)\]\((https?://[^\)]+)\)', r'[\1](\2)', text)
     return text.strip()
 
 if "messages" not in st.session_state:
@@ -122,12 +126,13 @@ system_content = (
     "For every trip request, ALWAYS reply in the following structure and style:\n"
     "1. Friendly short intro, summarizing trip city, dates, and user interests.\n"
     "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
-    "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
-    "   <emoji> <label>: <details>, ₹<cost> per person [Booking: <plausible link>]\n"
+    "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation, local transport), use a SEPARATE line with:\n"
+    "   <emoji> <label>: <details>, ₹<cost> per person [Book: <working https://... link>]\n"
     "   - Always state 'per person' and multiply for total day cost if group size >1.\n"
     "   - At end of EACH day, show both per person and total cost if group size >1.\n"
     "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
-    "   - Every major item must have a plausible booking/info link.\n"
+    "   - Every major item must have a real, working booking/info link (not placeholder or broken).\n"
+    "   - Always include local transportation cost for each day if relevant.\n"
     "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
     "5. After all days, show cost breakdown as bullet points, e.g.:\n"
     "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
@@ -153,40 +158,41 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
 
         col1, col2 = st.columns(2)
         with col1:
-            traveler_type = st.selectbox("🧍 Traveler Type", ["Solo", "Couple", "Family", "Group"])
-            group_size = st.number_input("👥 Group Size", min_value=1, value=2)
+            traveler_type = st.selectbox("🧍 Traveler Type", ["Solo", "Couple", "Family", "Group"], key="traveler_type")
+            group_size = st.number_input("👥 Group Size", min_value=1, value=2, key="group_size")
         with col2:
-            origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi")
-            destination = st.text_input("📍 Destination", placeholder="e.g., Paris")
+            origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi", key="origin")
+            destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="destination")
         col3, col4 = st.columns(2)
         with col3:
-            from_date = st.date_input("📅 From Date", min_value=date.today())
+            from_date = st.date_input("📅 From Date", min_value=date.today(), key="from_date")
         with col4:
-            to_date = st.date_input("📅 To Date", min_value=from_date)
+            to_date = st.date_input("📅 To Date", min_value=from_date, key="to_date")
 
         st.markdown("#### 💰 Budget & Stay")
         col5, col6 = st.columns(2)
         with col5:
-            budget_amount = st.number_input("💰 Budget", min_value=1000, step=1000)
+            budget_amount = st.number_input("💰 Budget", min_value=1000, step=1000, key="budget_amount")
         with col6:
-            currency_type = st.selectbox("💱 Currency", ["₹ INR", "$ USD", "€ EUR", "£ GBP", "¥ JPY"])
-        stay = st.selectbox("🏨 Stay Type", ["Hotel", "Hostel", "Airbnb", "Resort"])
+            currency_type = st.selectbox("💱 Currency", ["₹ INR", "$ USD", "€ EUR", "£ GBP", "¥ JPY"], key="currency_type")
+        stay = st.selectbox("🏨 Stay Type", ["Hotel", "Hostel", "Airbnb", "Resort"], key="stay")
 
         st.markdown("#### 🎯 Preferences & Interests")
-        dietary_pref = st.multiselect("🥗 Dietary", ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher"])
-        sustainability = st.selectbox("🌱 Sustainability", ["None", "Eco-Friendly Stays", "Carbon Offset Flights", "Zero-Waste Activities"])
-        language_pref = st.selectbox("🌐 Language", ["English", "Hindi", "French", "Spanish", "Mandarin", "Local Phrases"])
-        cultural_pref = st.selectbox("👗 Cultural Sensitivity", ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"])
+        dietary_pref = st.multiselect("🥗 Dietary", ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher"], key="dietary_pref")
+        sustainability = st.selectbox("🌱 Sustainability", ["None", "Eco-Friendly Stays", "Carbon Offset Flights", "Zero-Waste Activities"], key="sustainability")
+        language_pref = st.selectbox("🌐 Language", ["English", "Hindi", "French", "Spanish", "Mandarin", "Local Phrases"], key="language_pref")
+        cultural_pref = st.selectbox("👗 Cultural Sensitivity", ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"], key="cultural_pref")
         custom_activities = st.multiselect("🎨 Interests", [
             "Beaches", "Hiking", "Shopping", "Nightlife",
             "Cultural Immersion", "Foodie Tour", "Adventure Sports"
-        ])
+        ], key="custom_activities")
 
         submit = st.form_submit_button("🚀 Generate Itinerary")
 
         if submit:
             st.success("✅ Generating your personalized itinerary...")
 
+            # Always use the local variables here, not st.session_state, for correct form values!
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
                 f"Budget: {currency_type} {budget_amount}. "
@@ -198,12 +204,13 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 "IMPORTANT:\n"
                 "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
                 "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
-                "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [Booking: <plausible link>]\n"
+                "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation, local transport), use a SEPARATE line with:\n"
+                "   <emoji> <label>: <details>, ₹<cost> per person [Book: <working https://... link>]\n"
                 "   - Always state 'per person' and multiply for total day cost.\n"
                 "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
                 "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
-                "   - Every major item must have a plausible booking/info link.\n"
+                "   - Every major item must have a real, working booking/info link (not placeholder or broken).\n"
+                "   - Always include local transportation cost for each day if relevant.\n"
                 "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
                 "5. After all days, show cost breakdown as bullet points, e.g.:\n"
                 "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
@@ -248,7 +255,7 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
             st.session_state.form_submitted = True
             st.rerun()
 
-# ... (chat logic and LLM call remain unchanged except for cost breakdown expectations) ...
+# ... (rest unchanged) ...
 
 travel_keywords = [
     # ... (same as before) ...
@@ -299,12 +306,13 @@ if submitted and user_input:
                 "IMPORTANT:\n"
                 "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
                 "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
-                "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [Booking: <plausible link>]\n"
+                "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation, local transport), use a SEPARATE line with:\n"
+                "   <emoji> <label>: <details>, ₹<cost> per person [Book: <working https://... link>]\n"
                 "   - Always state 'per person' and multiply for total day cost.\n"
                 "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
                 "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
-                "   - Every major item must have a plausible booking/info link.\n"
+                "   - Every major item must have a real, working booking/info link (not placeholder or broken).\n"
+                "   - Always include local transportation cost for each day if relevant.\n"
                 "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
                 "5. After all days, show cost breakdown as bullet points, e.g.:\n"
                 "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
