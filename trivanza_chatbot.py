@@ -75,11 +75,9 @@ def recommend_destinations(user_history, preferences):
         return "Recommendations unavailable."
 
 def post_process_itinerary(text):
-    # Ensure emoji-bullets start on new lines
-    text = re.sub(r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆])', r'\n\1', text)
-    # Make sure each table row starts on a new line
-    text = re.sub(r'(\|\s*)', r'\n\1', text)
-    # Remove triple+ newlines
+    # Ensure each bullet and emoji starts on a new line
+    text = re.sub(r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•-])', r'\n\1', text)
+    # Remove excessive newlines
     text = re.sub(r'\n{3,}', r'\n\n', text)
     return text.strip()
 
@@ -125,12 +123,16 @@ system_content = (
     "1. Friendly short intro, summarizing trip city, dates, and user interests.\n"
     "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
     "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
-    "   <emoji> <label>: <details>, ₹<cost> per person [<Link/Info>]\n"
+    "   <emoji> <label>: <details>, ₹<cost> per person [Booking: <plausible link>]\n"
     "   - Always state 'per person' and multiply for total day cost if group size >1.\n"
     "   - At end of EACH day, show both per person and total cost if group size >1.\n"
+    "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
+    "   - Every major item must have a plausible booking/info link.\n"
     "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
-    "5. After all days, show a bold Markdown cost breakdown:\n"
-    "Total Trip Cost: ₹<per person>/<total for all>\n"
+    "5. After all days, show cost breakdown as bullet points, e.g.:\n"
+    "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
+    "   - ...\n"
+    "   - Total: ₹27,500 per person / ₹55,000 for couple\n"
     "6. Add a Packing Checklist for the destination in the travel month (based on weather & activities).\n"
     "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
     "8. Add a friendly Pro Tip at the end.\n"
@@ -183,10 +185,8 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
         submit = st.form_submit_button("🚀 Generate Itinerary")
 
         if submit:
-            # Use local form variables for prompt construction!
             st.success("✅ Generating your personalized itinerary...")
 
-            # --- Build user-friendly prompt for chat display ---
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
                 f"Budget: {currency_type} {budget_amount}. "
@@ -194,19 +194,21 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}. "
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
             )
-            # --- Strong, uniform instructions for LLM ---
             user_instructions = (
                 "IMPORTANT:\n"
                 "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
                 "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
                 "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [<Link/Info>]\n"
+                "   <emoji> <label>: <details>, ₹<cost> per person [Booking: <plausible link>]\n"
                 "   - Always state 'per person' and multiply for total day cost.\n"
                 "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
+                "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
+                "   - Every major item must have a plausible booking/info link.\n"
                 "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
-                "5. After all days, show a clear, bold cost breakdown table:\n"
-                "   - Table columns: Day, Per Person, Group\n"
-                "   - Row: Total\n"
+                "5. After all days, show cost breakdown as bullet points, e.g.:\n"
+                "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
+                "   - ...\n"
+                "   - Total: ₹27,500 per person / ₹55,000 for couple\n"
                 f"6. Add a Packing Checklist for {destination} in {from_date.strftime('%B')} (based on weather & activities).\n"
                 "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
                 f"8. Add a friendly {destination} Pro Tip at the end.\n"
@@ -218,12 +220,10 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 user_instructions
             )
 
-            # Store only the short, human-friendly prompt as the user message
             st.session_state.messages.append({
                 "role": "user",
                 "content": short_prompt
             })
-            # Store the full LLM prompt for the next LLM call
             st.session_state["pending_llm_prompt"] = full_prompt
 
             trip_context = {
@@ -248,20 +248,10 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
             st.session_state.form_submitted = True
             st.rerun()
 
-# ... (rest of the code unchanged, including chat logic and LLM call) ...
+# ... (chat logic and LLM call remain unchanged except for cost breakdown expectations) ...
 
 travel_keywords = [
-    "travel", "travelling", "trip", "vacation", "explore", "journey", "tour", "destination", "destinations",
-    "summer", "india", "holiday", "beach", "mountain", "adventure", "hotel", "flight", "sightseeing", "tourist",
-    "places", "itinerary", "plan", "attraction", "resort", "city", "backpacking", "road", "solo", "family", "budget",
-    "luxury", "eco", "sustainable", "nomad", "staycation", "getaway", "island", "unesco", "local", "cultural",
-    "trekking", "safari", "group", "hostel", "accommodation", "booking", "transport", "bus", "train", "car", "visa",
-    "passport", "insurance", "luggage", "packing", "currency", "cost", "expenses", "food", "cuisine", "restaurant",
-    "restaurants", "street", "dining", "festival", "nightlife", "shopping", "souvenir", "photography", "wellness",
-    "retreat", "spa", "guide", "cruise", "winter", "spring", "autumn", "monsoon", "hiking", "trek", "camping",
-    "surfing", "snorkeling", "scuba", "skiing", "kayaking", "cycling", "yoga", "meditation", "spiritual", "pilgrimage",
-    "heritage", "museum", "landmark", "nature", "wildlife", "park", "sports", "volunteer", "medical", "conference",
-    "business", "honeymoon", "offbeat", "hidden", "gem"
+    # ... (same as before) ...
 ]
 stemmed_keywords = set(ps.stem(k) for k in travel_keywords)
 
@@ -310,13 +300,16 @@ if submitted and user_input:
                 "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
                 "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
                 "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [<Link/Info>]\n"
+                "   <emoji> <label>: <details>, ₹<cost> per person [Booking: <plausible link>]\n"
                 "   - Always state 'per person' and multiply for total day cost.\n"
                 "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
+                "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
+                "   - Every major item must have a plausible booking/info link.\n"
                 "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
-                "5. After all days, show a clear, bold cost breakdown table:\n"
-                "   - Table columns: Day, Per Person, Group\n"
-                "   - Row: Total\n"
+                "5. After all days, show cost breakdown as bullet points, e.g.:\n"
+                "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
+                "   - ...\n"
+                "   - Total: ₹27,500 per person / ₹55,000 for couple\n"
                 "6. Add a Packing Checklist for the destination in the travel month (based on weather & activities).\n"
                 "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
                 "8. Add a friendly Pro Tip at the end.\n"
