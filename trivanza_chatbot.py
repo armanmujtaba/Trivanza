@@ -1,11 +1,11 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 import re
 from datetime import date
 
 # --------- CONFIG ---------
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
-openai.api_key = st.secrets.get("OPENAI_API_KEY")
+client = OpenAI()  # ✅ New OpenAI client
 
 # --------- SESSION INIT ---------
 if "messages" not in st.session_state:
@@ -34,6 +34,7 @@ st.markdown("""
         width: 350px;
     }
 }
+.chat-entry { margin-top: 10px; }
 </style>
 <div class="logo-container">
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
@@ -56,18 +57,15 @@ system_content = (
     "If the user's budget is too low, calculate the true cost of the trip and suggest trade-offs or alternatives."
 )
 
-# --------- CHAT HELPER ---------
-def get_chat_response():
-    try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",
-            messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
-            temperature=0.7,
-            max_tokens=1800
-        )
-        return response.choices[0].message['content']
-    except Exception as e:
-        return f"Sorry, I couldn't generate your itinerary right now.\n\nError: {str(e)}"
+greeting_message = """Welcome to Trivanza: Your Smart Travel Companion  
+I'm excited to help you with your travel plans. Could you please share some details like:  
+- Where you're starting and going  
+- Travel dates  
+- Transport and accommodation preferences  
+- Budget and currency  
+- Any activities you're excited about?"""
+
+fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
 # --------- FORM ---------
 with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitted):
@@ -101,7 +99,7 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
         language_pref = st.selectbox("🌐 Language", ["English", "Hindi", "French", "Spanish", "Mandarin", "Local Phrases"])
         cultural_pref = st.selectbox("👗 Cultural Sensitivity", ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"])
         custom_activities = st.multiselect("🎨 Interests", [
-            "Beaches", "Hiking", "Shopping", "Nightlife", 
+            "Beaches", "Hiking", "Shopping", "Nightlife",
             "Cultural Immersion", "Foodie Tour", "Adventure Sports"
         ])
 
@@ -149,13 +147,42 @@ with st.form("chat_form", clear_on_submit=True):
 
 if submitted and user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-    assistant_response = get_chat_response()
+    text_lower = user_input.lower()
+    greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
+    travel_keywords = ["trip", "flight", "itinerary", "weather", "hotel", "visa", "insurance", "food", "culture", "currency", "booking", "transport", "tour", "packing", "theft", "delay", "sightseeing"]
+
+    if any(greet in text_lower for greet in greetings) and not any(k in text_lower for k in travel_keywords):
+        assistant_response = greeting_message
+    elif not any(k in text_lower for k in travel_keywords):
+        assistant_response = fallback_message
+    else:
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
+                temperature=0.7,
+                max_tokens=1200
+            )
+            assistant_response = response.choices[0].message.content
+        except Exception:
+            assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
+
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.rerun()
 
-# --------- PROCESS FORM RESPONSE ---------
+# --------- PROCESS FORM-GENERATED MESSAGE ---------
 if st.session_state.pending_form_response:
-    assistant_response = get_chat_response()
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
+            temperature=0.7,
+            max_tokens=1200
+        )
+        assistant_response = response.choices[0].message.content
+    except Exception:
+        assistant_response = "Sorry, I'm unable to generate your itinerary right now."
+
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.session_state.pending_form_response = False
     st.rerun()
