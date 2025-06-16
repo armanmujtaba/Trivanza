@@ -114,7 +114,6 @@ if "user_history" not in st.session_state:
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
 
-# ---- Fix the logo at the top, always visible, no background box ----
 st.markdown("""
 <style>
 .logo-container {
@@ -122,37 +121,23 @@ st.markdown("""
     justify-content: center;
     align-items: center;
     margin-bottom: 10px;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    z-index: 1002;
-    background: transparent !important;
 }
 .logo {
     width: 300px;
-    background: transparent !important;
 }
 @media (min-width: 601px) {
     .logo {
         width: 350px;
     }
 }
-.logo-spacer {
-    height: 120px;
-}
-@media (max-width: 700px) {
-    .logo-container { width: 96vw !important; }
-    .logo-spacer { height: 85px; }
-}
+.chat-entry { margin-top: 10px; }
 .stChatInputContainer { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 1001; }
 .stChatInputContainer textarea { min-height: 2.5em; }
 .appview-container .main { padding-bottom: 8em !important; }
 </style>
 <div class="logo-container">
-    <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true" style="width:100%;margin-bottom:-8px;background:transparent;">
+    <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
 </div>
-<div class="logo-spacer"></div>
 """, unsafe_allow_html=True)
 
 greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
