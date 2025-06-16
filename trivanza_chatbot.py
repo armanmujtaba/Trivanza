@@ -109,18 +109,19 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 system_content = (
-    "You are TRIVANZA Travel Assistant. "
-    "For every trip request, ALWAYS reply in the following structure and style:\n\n"
-    "1. Friendly trip introduction with dates, title, and budget context.\n"
-    "2. For each day, use a heading (e.g., 'Day 1: Arrival in Bangkok') and list:\n"
-    "   - Each activity/expense as a bullet with an emoji, short label, cost in ₹, and a plausible booking or info link in brackets.\n"
-    "   - A daily total marked with 🎯 at the end of each day.\n"
-    "3. At the end, show 'Total Trip Cost: ₹xx,xxx'.\n"
-    "4. Include a short note that costs are estimates and can be adjusted.\n"
-    "Format in Markdown. Use only Indian Rupees (₹, INR) for all costs. "
-    "Include real or plausible booking/info links for flights, hotels, restaurants, and major activities. "
-    "Never summarize days; always list each one with this structure. "
-    "Include vegetarian options, eco-friendly stays, and the user's preferences if requested."
+    "You are TRIVANZA Travel Assistant. For every trip, follow these rules:\n"
+    "1. Begin with a friendly, personalized intro summarizing destination, dates, and user’s main interests.\n"
+    "2. For each day, use a heading (e.g., 'Day 1: Arrival in Bangkok').\n"
+    "   - For each event/expense, use a new line with an emoji, label, price in ₹, and booking/info link in brackets.\n"
+    "   - Use only real or plausible options that match user dietary, sustainability, and other preferences (e.g., vegetarian food, eco hotels, activities matching interests).\n"
+    "   - Separate each item on its own new line for maximum readability.\n"
+    "   - End each day with a 🎯 Daily Total on a new line.\n"
+    "3. After daily plans, show total trip cost as 'Total Trip Cost: ₹xx,xxx' on its own line.\n"
+    "4. Create a packing checklist based on the destination’s weather/season and user activities. Use June/July Bangkok weather for packing if applicable.\n"
+    "5. Add a short, clear budget analysis: is the user’s budget low/medium/high for their preferences? Suggest adjustments if needed.\n"
+    "6. End with a friendly ‘Pro Tip’ for the destination (e.g., money-saving, cultural, or local tip).\n"
+    "7. Output must be in Markdown, with each heading, bullet, and total on its own line, never run-together. Do not summarize days—always list every day.\n"
+    "8. All costs must be shown in Indian Rupees (₹, INR).\n"
 )
 
 greeting_message = """Welcome to Trivanza: Your Smart Travel Companion  
@@ -199,17 +200,20 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 }
                 st.session_state.trip_context = trip_context
                 st.session_state.user_history.append(trip_context)
-                st.session_state.just_generated_form_prompt = True  # PATCH: Mark this as a form-generated prompt
+                st.session_state.just_generated_form_prompt = True
                 user_instructions = (
-                    "IMPORTANT: Format the itinerary just like this example:\n\n"
-                    "Day 1: Arrival in Hanoi\n"
-                    "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
-                    "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
-                    "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
-                    "🎯 Daily Total: ₹28,700\n\n"
-                    "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
-                    "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
-                    "Do not summarize. Do not skip any day. Use booking/info links for every major item."
+                    "IMPORTANT: Format each day as:\n"
+                    "Day X: <Title>\n"
+                    "✈️ Flight: ... ₹... [Book: ...]\n"
+                    "🏨 Stay: ... ₹... [Book: ...]\n"
+                    "🍽️ Meal: ... ₹... [Book: ...]\n"
+                    "🎯 Daily Total: ₹...\n"
+                    "Each item must be on its own new line. Do not combine items. Use only options matching my preferences (dietary, eco-friendly, interests).\n"
+                    "After the last day, add:\n"
+                    "- Total Trip Cost: ₹<total>\n"
+                    "- Packing Checklist for " + destination + f" in {from_date.strftime('%B')} (based on weather & activities)\n"
+                    "- Budget analysis: Is my budget low/medium/high? Suggest what to change if needed.\n"
+                    "- End with a friendly {destination} pro tip."
                 )
                 prompt = (
                     f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
@@ -287,15 +291,18 @@ if submitted and user_input:
     else:
         try:
             user_instructions = (
-                "IMPORTANT: Format the itinerary just like this example:\n\n"
-                "Day 1: Arrival in Hanoi\n"
-                "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
-                "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
-                "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
-                "🎯 Daily Total: ₹28,700\n\n"
-                "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
-                "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
-                "Do not summarize. Do not skip any day. Use booking/info links for every major item."
+                "IMPORTANT: Format each day as:\n"
+                "Day X: <Title>\n"
+                "✈️ Flight: ... ₹... [Book: ...]\n"
+                "🏨 Stay: ... ₹... [Book: ...]\n"
+                "🍽️ Meal: ... ₹... [Book: ...]\n"
+                "🎯 Daily Total: ₹...\n"
+                "Each item must be on its own new line. Do not combine items. Use only options matching my preferences (dietary, eco-friendly, interests).\n"
+                "After the last day, add:\n"
+                "- Total Trip Cost: ₹<total>\n"
+                "- Packing Checklist for the destination in the travel month (based on weather & activities)\n"
+                "- Budget analysis: Is my budget low/medium/high? Suggest what to change if needed.\n"
+                "- End with a friendly pro tip."
             )
             messages = [{"role": "system", "content": system_content}] + st.session_state.messages
             messages.append({
@@ -309,6 +316,8 @@ if submitted and user_input:
                 max_tokens=1800
             )
             assistant_response = response.choices[0].message.content
+            # Post-processing: ensure each bullet/emoji appears on a new line
+            assistant_response = re.sub(r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣])', r'\n\1', assistant_response)
         except Exception:
             assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
 
@@ -323,16 +332,21 @@ if st.session_state.pending_form_response:
             if currency_type.startswith("₹")
             else f"Please show all costs in {currency_type}."
         )
+        destination = st.session_state.trip_context["destination"]
+        from_date = st.session_state.trip_context["from_date"]
         user_instructions = (
-            "IMPORTANT: Format the itinerary just like this example:\n\n"
-            "Day 1: Arrival in Hanoi\n"
-            "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
-            "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
-            "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
-            "🎯 Daily Total: ₹28,700\n\n"
-            "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
-            "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
-            "Do not summarize. Do not skip any day. Use booking/info links for every major item."
+            "IMPORTANT: Format each day as:\n"
+            "Day X: <Title>\n"
+            "✈️ Flight: ... ₹... [Book: ...]\n"
+            "🏨 Stay: ... ₹... [Book: ...]\n"
+            "🍽️ Meal: ... ₹... [Book: ...]\n"
+            "🎯 Daily Total: ₹...\n"
+            "Each item must be on its own new line. Do not combine items. Use only options matching my preferences (dietary, eco-friendly, interests).\n"
+            f"After the last day, add:\n"
+            f"- Total Trip Cost: ₹<total>\n"
+            f"- Packing Checklist for {destination} in {from_date.strftime('%B')} (based on weather & activities)\n"
+            "- Budget analysis: Is my budget low/medium/high? Suggest what to change if needed.\n"
+            f"- End with a friendly {destination} pro tip."
         )
         messages = [{"role": "system", "content": system_content}] + st.session_state.messages
         messages.append({
@@ -346,6 +360,8 @@ if st.session_state.pending_form_response:
             max_tokens=1800
         )
         assistant_response = response.choices[0].message.content
+        # Post-processing: ensure each bullet/emoji appears on a new line
+        assistant_response = re.sub(r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣])', r'\n\1', assistant_response)
     except Exception:
         assistant_response = "Sorry, I'm unable to generate your itinerary right now."
 
