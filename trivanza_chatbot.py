@@ -12,18 +12,25 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 # ----------------- CUSTOM HEADER -----------------
 st.markdown("""
 <style>
-@media (max-width: 600px) {
-    .logo { width: 200px; }
-    .header-text { font-size: 18px; }
-}
-@media (min-width: 601px) {
-    .logo { width: 250px; }
-    .header-text { font-size: 22px; }
-}
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    .logo {
+        width: 200px;
+    }
+
+    @media (min-width: 601px) {
+        .logo {
+            width: 250px;
+        }
+    }
 </style>
-<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+<div class="logo-container">
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
-    </div>
+</div>
 """, unsafe_allow_html=True)
 
 # ----------------- SESSION STATE INIT ----------------- 
