@@ -142,8 +142,8 @@ st.markdown("""
 
 greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
 I'm excited to help you with your travel plans.
-- Submit form for trip planning  
-- Use chat box for your travel related queries"""
+- Submit Plan My Trip form for customised itinerary  
+- Use chat box for your other travel related queries"""
 
 fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
@@ -260,15 +260,15 @@ for msg in st.session_state.messages:
         st.markdown(msg["content"])
 
 # Chat input at the bottom
-user_input = st.chat_input(placeholder="Ask Trivanza anything travel-related:")
+user_input = st.chat_input(placeholder="How may I help you today?")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     text_lower = user_input.lower()
-    greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
+    greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "plan", "itinerary", "plan my trip", "journey", "my journey"]
     words = re.findall(r'\w+', text_lower)
     travel_keywords = [
-        "travel", "trip", "holiday", "vacation", "itinerary", "hotel", "flight",
+        "travel", "trip", "holiday", "vacation", "hotel", "flight",
         "visa", "sightseeing", "tour", "activity", "adventure", "food", "restaurant",
         "booking", "accommodation", "stay", "passport", "insurance", "luggage", "bag",
         "currency", "weather", "destination", "explore", "plan", "train", "bus", "car",
