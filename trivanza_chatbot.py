@@ -401,7 +401,7 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                 st.error("❌ Please enter your destination!")
             elif to_date < from_date:
                 st.error("❌ End date must be after start date!")
-                       else:
+            else:
                 # Show immediate feedback
                 st.success("✅ Creating your personalized itinerary...")
                 # Mark form as submitted to prevent re-rendering
