@@ -1,18 +1,21 @@
 import streamlit as st
-from openai import OpenAI
+import openai
 from datetime import date, timedelta
+import requests
+from dotenv import load_dotenv
+import os
 
-# ----------------- CONFIG -----------------
-st.set_page_config(page_title="TRIVANZA – Your Smart Travel Companion", layout="centered")
-client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+# Load environment variables
+load_dotenv()
 
-# ----------------- CUSTOM HEADER -----------------
-st.markdown("""
-<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-    <img src="https://github.com/armanmujtaba/Trivanza/blob/main/Trivanza.png"  width="45px">
-    """, unsafe_allow_html=True)
+# Set API keys from .env file
+openai.api_key = os.getenv("OPENAI_API_KEY")
+timezonedb_api_key = os.getenv("TIMEZONEDB_API_KEY")
+weather_api_key = os.getenv("WEATHER_API_KEY")
+google_maps_api_key = os.getenv("GOOGLE_MAPS_API_KEY")
+exchange_rate_api_key = os.getenv("EXCHANGE_RATE_API_KEY")
 
-# ----------------- SESSION STATE INIT -----------------
+# Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "show_form" not in st.session_state:
@@ -21,135 +24,206 @@ if "form_submitted" not in st.session_state:
     st.session_state.form_submitted = False
 if "trip_context" not in st.session_state:
     st.session_state.trip_context = {}
-if "generating_itinerary" not in st.session_state:
-    st.session_state.generating_itinerary = False
 
-# ----------------- HELPER FUNCTION -----------------
+# ----------------- CUSTOM HEADER -----------------
+st.markdown("""
+<style>
+@media (max-width: 600px) {
+    .logo {
+        width: 35px;
+    }
+    .header-text {
+        font-size: 18px;
+    }
+}
+@media (min-width: 601px) {
+    .logo {
+        width: 45px;
+    }
+    .header-text {
+        font-size: 22px;
+    }
+}
+</style>
+<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+    <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png"  alt="Logo">
+    <h2 class="header-text" style="margin: 0;">TRIVANZA</h2>
+</div>
+""", unsafe_allow_html=True)
+
+# Remove page title
+st.set_page_config(page_title="", page_icon="✈️", layout="centered")
+
+# ----------------- HELPER FUNCTIONS -----------------
+def get_time_difference(origin, destination):
+    """Get time difference between origin and destination"""
+    url = f"http://api.timezonedb.com/v2.1/get-time-difference?key={timezonedb_api_key}&format=json&from={origin}&to={destination}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        return data.get("toZoneShortName", "") + " (" + str(data.get("totalOffset", 0)) + " hrs)"
+    except:
+        return "N/A"
+
+def get_weather_forecast(city, date):
+    """Get weather forecast for destination city"""
+    url = f"http://api.weatherapi.com/v1/forecast.json?key={weather_api_key}&q={city}&dt={date.strftime('%Y-%m-%d')}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        return data["forecast"]["forecastday"][0]["day"]["condition"]["text"] + ", " + str(data["forecast"]["forecastday"][0]["day"]["avgtemp_c"]) + "°C"
+    except:
+        return "N/A"
+
+def get_hotels(city, budget):
+    """Get hotel recommendations using Google Maps API"""
+    search_url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query=hotels+in+{city}&key={google_maps_api_key}"
+    try:
+        response = requests.get(search_url)
+        data = response.json()
+        results = data.get("results", [])
+        return [f"[{res['name']}]({res['website']}) - ₹{budget//5}/night" for res in results[:3]]
+    except:
+        return ["N/A"]
+
+def get_restaurants(city):
+    """Get restaurant recommendations"""
+    search_url = f"https://maps.googleapis.com/maps/api/place/textsearch/json?query=restaurants+in+{city}&key={google_maps_api_key}"
+    try:
+        response = requests.get(search_url)
+        data = response.json()
+        results = data.get("results", [])
+        return [f"[{res['name']}]({res['website']})" for res in results[:3]]
+    except:
+        return ["N/A"]
+
+def convert_currency(amount, from_curr="INR", to_curr="USD"):
+    """Convert budget to local currency"""
+    url = f"https://v6.exchangerate-api.com/v4/{exchange_rate_api_key}/latest/{from_curr}"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        rate = data["conversion_rates"].get(to_curr, 1)
+        return round(amount * rate, 2)
+    except:
+        return amount
+
+# ----------------- ITINERARY GENERATOR ----------------- 
 def generate_itinerary(trip_data):
-    """Generate itinerary using OpenAI API with enhanced logistics"""
+    """Generate itinerary with enhanced logic"""
     start_date = trip_data["from_date"]
     end_date = trip_data["to_date"]
     duration = (end_date - start_date).days + 1
+    all_dates = [start_date + timedelta(days=i) for i in range(duration)]
 
-    # Generate list of dates
-    all_dates = []
-    current_date = start_date
-    for i in range(duration):
-        all_dates.append(current_date.strftime("%B %d, %Y"))
-        current_date += timedelta(days=1)
+    # Calculate time zone difference
+    time_diff = get_time_difference("Asia/Kolkata", trip_data["destination"])
 
-    # Construct detailed prompt
-    prompt = f"""You are TRIVANZA, a professional travel planner with expertise in logistics and ITINERARY planning.
-MANDATORY REQUIREMENTS:
-1. CREATE A COMPLETE {duration}-DAY ITINERARY INCLUDING:
-   - Flight schedules with realistic times (departures from {destination})
-   - Airport transfers (1.5 hours minimum)
-   - Time zone adjustments (calculate arrival times precisely)
-   - Hotel check-in/out times (12 PM standard)
-   - Meal recommendations with prices and locations
-   - Specific attractions with booking links
-2. FIRST DAY MUST INCLUDE:
-   - Arrival time calculation (flight duration + time zone difference)
-   - Airport-to-hotel transfer timing
-   - Light activities adjusted for jet lag
-3. FINAL DAY MUST INCLUDE:
-   - Airport departure logistics (3-hour check-in requirement)
-   - Last-minute activities near airport
-   - Return transfer timing to Origin
+    # Get weather
+    weather = get_weather_forecast(trip_data["destination"], start_date)
+
+    # Get hotel and restaurant recommendations
+    hotels = get_hotels(trip_data["destination"], int(trip_data["budget"].replace("₹", "").strip()))
+    restaurants = get_restaurants(trip_data["destination"])
+
+    # Convert budget to USD
+    budget_inr = int(trip_data["budget"].replace("₹", "").strip())
+    budget_usd = convert_currency(budget_inr, "INR", "USD")
+
+    prompt = f"""You are TRIVANZA, the world's most advanced travel assistant. Create a complete itinerary including:
+
+1. ✈️ FLIGHT LOGISTICS:
+   - Realistic arrival/departure times
+   - Time zone adjustments
+   - Airport transfers
+
+2. 🏨 ACCOMMODATION:
+   - Top 3 hotels with links
+   - Budget considerations
+
+3. 🍽️ FOOD:
+   - Top 3 restaurants
+   - Local cuisine highlights
+
+4. 🗓️ ACTIVITIES:
+   - Weather-aware planning
+   - Local tips and cultural etiquette
+
+5. 💵 BUDGET:
+   - INR and USD breakdown
+   - Activity and transport costs
 
 TRIP DETAILS:
 - Origin: {trip_data['origin']}
 - Destination: {trip_data['destination']}
-- Transport Mode: {trip_data['transport']}
-- Duration: {duration} days
-- Dates: {all_dates[0]} to {all_dates[-1]}
-- Budget: {trip_data['budget']}
-- Accommodation: {trip_data['stay']}
+- Dates: {all_dates[0].strftime('%B %d')} - {all_dates[-1].strftime('%B %d, %Y')}
+- Time Zone Difference: {time_diff}
+- Weather Forecast: {weather}
+- Budget: {trip_data['budget']} (≈ ${budget_usd} USD)
+- Travelers: 2 adults
 - Interests: {trip_data['activities']}
 
-EXACT OUTPUT FORMAT:
-# {duration}-Day {trip_data['destination']} Adventure
+FORMAT:
+# 🌍 {duration}-Day {trip_data['destination']} Ultimate Adventure
 **Travel Period:** {start_date.strftime('%B %d')} - {end_date.strftime('%B %d, %Y')}
-## OUTBOUND FLIGHT DETAILS
-**{all_dates[0]} - Departure Day**
-- **6:00 PM:** Depart for Indira Gandhi International Airport, Delhi
-- **9:00 PM:** Flight departure to {trip_data['destination']} (₹{int(trip_data['budget'].replace('₹','').replace('INR',''))//3} round-trip)
-- **Flight Duration:** e.g., Delhi-Paris: 8h45m
-- **Arrival:** Next day [Calculate with time zone difference] local time
-- **Airport Transfer:** 1.5-hour taxi/Uber to hotel (₹1500-2500)
-- **Hotel Check-in:** 12:00 PM (store luggage if early)
+**Weather:** {weather}
 
----
-## Day 1 - {all_dates[0]} (Arrival Day)
-**Afternoon (Post-transfer):**
-- [Hotel name] check-in and rest
-- [Nearby restaurant]: Local cuisine dinner (₹800-1200/pax)
-- [Nearby attraction]: Light evening activity (e.g., sunset view at [location])
+## ✈️ FLIGHT DETAILS
+**Outbound Journey**
+- Departure: 9:00 PM from Delhi
+- Arrival: Next day 6:00 AM in {trip_data['destination']} (Time Diff: {time_diff})
+- Airport Transfer: 1.5 hours
 
-**Evening:**
-- [Restaurant name]: Light meal recommendation
-- Packing tips for next day
+## 🏨 ACCOMMODATION
+### Top Hotels:
+{chr(10).join(hotels)}
 
----
-## Day 2 - {all_dates[1]}
+## 🍽️ FOOD
+### Top Restaurants:
+{chr(10).join(restaurants)}
+
+## 🗓️ DAY-BY-DAY ITINERARY
+
+## Day 1 - {all_dates[0].strftime('%A, %B %d')}
+**Arrival Day**
+- 6:00 AM: Arrive at airport
+- 7:30 AM: Transfer to hotel
+- 11:00 AM: Light activities near hotel
+- 7:00 PM: Dinner at recommended restaurant
+
+## Day 2 - {all_dates[1].strftime('%A, %B %d')}
 **Morning:**
-- [Specific attraction] (Book via Klook: [link]) - [Price]
-- [Local activity] with detailed timing
+- Visit top attractions
+- Explore local markets
 
 **Afternoon:**
-- [Iconic restaurant]: Lunch recommendation (₹1000-1500/pax)
-- [Cultural activity] with booking link (GetYourGuide: [link])
+- Lunch at [Restaurant]
+- Cultural activity
 
 **Evening:**
-- [Night activity]: [Platform link] - [Price]
-- [Local bar/nightspot]: Drink recommendation
+- Night tour or local nightlife
 
-[Continue this pattern for middle days...]
+[Continue for all days...]
 
----
-## Day {duration} - {all_dates[-1]} (Departure Day)
-**Morning:**
-- **8:00 AM:** Hotel checkout and luggage storage
-- [Nearby attraction]: Morning activity near airport
-- [Quick bite location]: Breakfast recommendation
+## 💵 BUDGET BREAKDOWN
+- ✈️ Flights: ₹{budget_inr * 0.3}
+- 🏨 Hotels: ₹{budget_inr * 0.25}
+- 🍽️ Food: ₹{budget_inr * 0.2}
+- 🎡 Activities: ₹{budget_inr * 0.15}
+- 🚖 Transport: ₹{budget_inr * 0.1}
+- 🧳 Emergency Fund: ₹{budget_inr * 0.05}
 
-**Afternoon:**
-- **2:00 PM:** Depart for {trip_data['destination']} Airport
-- **3:00 PM:** Arrive at airport for international departure
-- **6:00 PM:** Flight departure to Delhi
+## 🔗 BOOKING LINKS
+- ✈️ Flights: MakeMyTrip, Cleartrip, Skyscanner
+- 🏨 Hotels: Booking.com, Airbnb
+- 🎡 Activities: Klook, GetYourGuide
+- 🍽️ Restaurants: Zomato, TripAdvisor
+- 🗺️ Navigation: Google Maps, Citymapper
 
-## RETURN FLIGHT DETAILS
-**{(end_date + timedelta(days=1)).strftime('%B %d, %Y')} - Arrival in Delhi**
-- **Arrival:** [Calculate with time zone difference] at IGI Airport
-- **Airport transfer home:** ₹800-1200
-
-## ACCOMMODATION RECOMMENDATIONS
-- Luxury: [Hotel name] (Booking.com: [link]) - ₹{int(trip_data['budget'].replace('₹','').replace('INR',''))//5}+/night
-- Mid-range: [Hotel name] (Airbnb: [link]) - ₹3000-5000/night
-- Budget: [Hostel name] (Hostelworld: [link]) - ₹1000-1500/night
-
-## FOODIE FAVORITES
-- Must-try dish: [Dish name] at [Restaurant link]
-- Street food spot: [Location] (Google Maps link)
-- Fine dining: [Restaurant name] (Zomato link)
-
-## BUDGET BREAKDOWN
-- Flights: 30% of budget (Delhi-{trip_data['destination']})
-- Hotels: 25% of budget ({duration-1} nights)
-- Food: 20% of budget ({duration} days)
-- Activities: 15% of budget
-- Transport: 10% of budget
-
-CRITICAL:
-- Use actual time zone differences (Delhi to Europe: -4.5h, Delhi to US: -10h)
-- Calculate arrival times: Departure time + flight duration ± time zone difference
-- Include restaurant/hotel links from Booking.com, Zomato, and Google Maps
-- Add activity booking links from Klook and GetYourGuide
-- Recommend specific places with addresses and prices
-"""
+Would you like to refine any aspect of this itinerary?"""
 
     try:
-        response = client.chat.completions.create(
+        response = openai.ChatCompletion.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": f"You are TRIVANZA, a detailed travel planner. You must create comprehensive itineraries that include realistic flight schedules, airport transfers, and travel logistics for {trip_data['transport']} travel from {trip_data['origin']} to {trip_data['destination']}. Always account for flight times, jet lag, and departure logistics."},
@@ -197,7 +271,7 @@ Answer ONLY travel-related questions using this context.
             ]
             messages += [{"role": m["role"], "content": m["content"]} for m in st.session_state.messages[-5:]]
             with st.spinner("✈️ Planning your response..."):
-                response = client.chat.completions.create(
+                response = openai.ChatCompletion.create(
                     model="gpt-3.5-turbo",
                     messages=messages,
                     temperature=0.7,
@@ -244,7 +318,6 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                 st.success("✅ Creating your personalized itinerary...")
                 st.session_state.form_submitted = True
                 st.session_state.show_form = False
-                st.session_state.generating_itinerary = True
                 trip_data = {
                     "origin": origin.strip(),
                     "destination": destination.strip(),
@@ -256,13 +329,7 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                     "activities": activities.strip()
                 }
                 st.session_state.trip_context = trip_data
-                with st.spinner("🎯 Crafting your detailed multi-day itinerary... This may take a moment."):
+                with st.spinner("🎯 Crafting your detailed multi-day itinerary..."):
                     itinerary = generate_itinerary(trip_data)
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
-                    st.session_state.generating_itinerary = False
                 st.rerun()
-
-# ----------------- ONGOING ITINERARY GENERATION -----------------
-if st.session_state.generating_itinerary:
-    with st.spinner("🎯 Still working on your itinerary..."):
-        pass
