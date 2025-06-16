@@ -75,21 +75,16 @@ def recommend_destinations(user_history, preferences):
         return "Recommendations unavailable."
 
 def post_process_itinerary(text):
-    # Convert [Book: ...] or [Info: ...] to Markdown links [Book](...)
     text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]\s]+)\]', r'[\1](\2)', text)
-    # Ensure each bullet, emoji, or heading starts on a new line
     text = re.sub(
         r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•\-])',
         r'\n\1', text
     )
-    # Ensure Markdown headings start on their own line (## Day N: ...)
     text = re.sub(r'(?<!\n)(## Day)', r'\n\1', text)
-    # Ensure each itinerary item is on its own line (extra safety: split on . or ; if multiple items in one line)
     fixed_lines = []
     for line in text.split('\n'):
-        # If line contains multiple emojis, split further
         splits = re.split(r'(?=(✈️|🏨|🍽️|🍜|🍹|🚌|🚕|🚶‍♀️|🛍️|🎯|🎉|🎭|🕌|🍴|🍣|🏖️|🚗|🚖|🚶‍♂️|🚴‍♂️|🌆))', line)
-        splits = [s for s in splits if s]  # remove empty
+        splits = [s for s in splits if s]
         if len(splits) > 1:
             for s in splits:
                 if s.strip():
@@ -97,7 +92,6 @@ def post_process_itinerary(text):
         else:
             fixed_lines.append(line.strip())
     text = '\n'.join(fixed_lines)
-    # Remove excessive newlines
     text = re.sub(r'\n{3,}', r'\n\n', text)
     return text.strip()
 
@@ -114,31 +108,62 @@ if "user_history" not in st.session_state:
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
 
+# --- LAYOUT CSS: Fixed logo at top, fixed chat at bottom, form above chat ---
 st.markdown("""
 <style>
-.logo-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-bottom: 10px;
+/* Fix logo at top of app */
+.trivanza-logo-fixed {
+    position: fixed;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 320px;
+    z-index: 1002;
+    background: white;
+    border-radius: 0 0 16px 16px;
+    box-shadow: 0 2px 12px #0001;
+    padding: 0.5em 1em 0.8em 1em;
+    margin-top: 0;
 }
-.logo {
-    width: 300px;
+.trivanza-logo-spacer {
+    height: 120px;
 }
-@media (min-width: 601px) {
-    .logo {
-        width: 350px;
-    }
-}
-.chat-entry { margin-top: 10px; }
 .stChatInputContainer { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 1001; }
 .stChatInputContainer textarea { min-height: 2.5em; }
-.appview-container .main { padding-bottom: 8em !important; }
+.appview-container .main { padding-bottom: 11em !important; padding-top: 8em !important; }
+
+.trivanza-form-box {
+    position: fixed;
+    left: 50%;
+    bottom: 5.5em;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 2px 12px #0002;
+    padding: 1.4em 2em 1em 2em;
+    width: 600px;
+    max-width: 96vw;
+}
+.trivanza-form-spacer {
+    height: 340px;
+}
+@media (max-width: 700px) {
+    .trivanza-logo-fixed { width: 96vw !important; }
+    .trivanza-form-box { width: 99vw !important; padding: 0.5em 0.5em 0.5em 0.5em;}
+    .trivanza-form-spacer { height: 480px; }
+}
 </style>
-<div class="logo-container">
-    <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
+""", unsafe_allow_html=True)
+
+# --- Fixed Logo at Top ---
+st.markdown("""
+<div class="trivanza-logo-fixed">
+    <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true" style="width:100%;margin-bottom:-8px;">
 </div>
 """, unsafe_allow_html=True)
+# --- Spacer for logo so chat/form not hidden ---
+st.markdown('<div class="trivanza-logo-spacer"></div>', unsafe_allow_html=True)
 
 greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
 I'm excited to help you with your travel plans.
@@ -147,8 +172,10 @@ I'm excited to help you with your travel plans.
 
 fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
-with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitted):
-    with st.form("travel_form", clear_on_submit=False):
+# --- Fixed Form just above chat box (appears even after submission for quick new planning) ---
+with st.container():
+    st.markdown('<div class="trivanza-form-box">', unsafe_allow_html=True)
+    with st.form("travel_form_fixed", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
 
         col1, col2 = st.columns(2)
@@ -252,14 +279,18 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
             st.session_state.pending_form_response = True
             st.session_state.form_submitted = True
             st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# Render chat history above input
+# --- Spacer for form so chat/msgs not hidden ---
+st.markdown('<div class="trivanza-form-spacer"></div>', unsafe_allow_html=True)
+
+# --- Render chat history above input ---
 for msg in st.session_state.messages:
     avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
-# Chat input at the bottom
+# --- Chat input at the bottom, with placeholder and submit button ---
 user_input = st.chat_input(placeholder="Ask Trivanza anything travel-related:")
 
 if user_input:
