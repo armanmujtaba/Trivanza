@@ -16,15 +16,15 @@ st.markdown("""
         display: flex;
         justify-content: center;
         align-items: center;
-        margin-bottom: 20px;
+        margin-bottom: 10px;
     }
     .logo {
-        width: 200px;
+        width: 300px;
     }
 
     @media (min-width: 601px) {
         .logo {
-            width: 250px;
+            width: 350px;
         }
     }
 </style>
