@@ -265,7 +265,7 @@ TRIP DETAILS:
 - Dates: {', '.join(date.strftime('%A, %B %d') for date in all_dates)}
 - Budget: {trip_data['currency']}{trip_data['budget_amount']} ({trip_data['budget_type']})
 - Group Size: {trip_data['group_size']} {f'(with {", ".join(trip_data["dietary_pref"])})' if trip_data["dietary_pref"] else ''}
-- Interests: {', '.join(trip_data.get('custom_activities', ['None'])}
+- Interests: {', '.join(trip_data.get('custom_activities', ['None']))}
 - Cultural Sensitivity: {trip_data['cultural_pref']}
 - Accessibility: {"Yes" if trip_data['accessibility'] else "No"}
 - Local Transport: {', '.join(trip_data['transport_pref'])}
