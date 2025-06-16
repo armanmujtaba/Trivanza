@@ -14,6 +14,8 @@ if "form_submitted" not in st.session_state:
     st.session_state.form_submitted = False
 if "trip_context" not in st.session_state:
     st.session_state.trip_context = None
+if "pending_form_response" not in st.session_state:
+    st.session_state.pending_form_response = False
 
 # --------- CUSTOM HEADER ---------
 st.markdown("""
@@ -56,11 +58,9 @@ system_content = (
 
 greeting_message = """Welcome to Trivanza: Your Smart Travel Companion  
 I'm excited to help you with your travel plans. Could you please share some details like:  
-- Where you're starting and going  
-- Travel dates  
-- Transport and accommodation preferences  
-- Budget and currency  
-- Any activities you're excited about?"""
+- To generate personalised travel plan, please use form  
+- Any other query related to travel, please ask in chatbox 
+"""
 
 fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
@@ -129,11 +129,13 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                     "currency_type": currency_type,
                     "stay": stay
                 }
-                st.session_state.form_submitted = True
+                # Append user instruction and mark for processing
                 st.session_state.messages.append({
                     "role": "user",
                     "content": f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. Stay: {stay}. Interests: {', '.join(custom_activities)}. Language: {language_pref}. Sustainability: {sustainability}."
                 })
+                st.session_state.pending_form_response = True
+                st.session_state.form_submitted = True
                 st.rerun()
 
 # --------- CHAT MODULE ---------
@@ -164,6 +166,23 @@ if submitted and user_input:
             assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
 
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+    st.rerun()
+
+# --------- PROCESS FORM-GENERATED MESSAGE ---------
+if st.session_state.pending_form_response:
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
+            temperature=0.7,
+            max_tokens=1200
+        )
+        assistant_response = response.choices[0].message['content']
+    except Exception:
+        assistant_response = "Sorry, I'm unable to generate your itinerary right now."
+
+    st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+    st.session_state.pending_form_response = False
     st.rerun()
 
 # --------- DISPLAY CHAT ---------
