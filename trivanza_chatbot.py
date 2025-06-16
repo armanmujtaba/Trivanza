@@ -13,11 +13,11 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 st.markdown("""
 <style>
 @media (max-width: 600px) {
-    .logo { width: 100px; }
+    .logo { width: 200px; }
     .header-text { font-size: 18px; }
 }
 @media (min-width: 601px) {
-    .logo { width: 150px; }
+    .logo { width: 250px; }
     .header-text { font-size: 22px; }
 }
 </style>
