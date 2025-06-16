@@ -3,7 +3,7 @@ import streamlit as st
 from openai import OpenAI
 from datetime import date, timedelta
 
-# ----------------- CONFIG (MUST BE FIRST) -----------------
+# ----------------- CONFIG (MUST BE FIRST STREAMLIT COMMAND) -----------------
 st.set_page_config(page_title="", page_icon="✈️", layout="centered")
 
 # ----------------- INIT CLIENT AFTER CONFIG -----------------
@@ -13,20 +13,12 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 st.markdown("""
 <style>
 @media (max-width: 600px) {
-    .logo {
-        width: 35px;
-    }
-    .header-text {
-        font-size: 18px;
-    }
+    .logo { width: 35px; }
+    .header-text { font-size: 18px; }
 }
 @media (min-width: 601px) {
-    .logo {
-        width: 45px;
-    }
-    .header-text {
-        font-size: 22px;
-    }
+    .logo { width: 45px; }
+    .header-text { font-size: 22px; }
 }
 </style>
 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
@@ -49,105 +41,80 @@ if "generating_itinerary" not in st.session_state:
 
 # ----------------- HELPER FUNCTION -----------------
 def generate_itinerary(trip_data):
-    """Generate itinerary with full flight logistics and accommodations"""
+    """Generate itinerary using OpenAI API with full flight logic"""
+    # Calculate all dates in the trip
     start_date = trip_data["from_date"]
     end_date = trip_data["to_date"]
     duration = (end_date - start_date).days + 1
 
-    # Generate list of dates
-    all_dates = [start_date + timedelta(days=i) for i in range(duration)]
-    
-    # Enhanced prompt with comprehensive requirements
-    prompt = f"""You are TRIVANZA, the world's most advanced AI travel concierge. Create a complete itinerary including:
+    # Create list of all dates
+    all_dates = []
+    current_date = start_date
+    for i in range(duration):
+        all_dates.append(current_date.strftime("%B %d, %Y"))
+        current_date += timedelta(days=1)
 
+    # Calculate realistic flight times and time zones
+    time_zone_diff = "-4.5 hours" if "europe" in trip_data["destination"].lower() else "-10 hours"
+    arrival_time = "6:00 AM" if "europe" in trip_data["destination"].lower() else "11:00 AM"
+    return_arrival_time = "6:00 AM IST"
+
+    prompt = f"""You are TRIVANZA, a professional travel planning assistant. 
 MANDATORY REQUIREMENTS:
-1. ✈️ FLIGHT LOGISTICS (MUST INCLUDE):
-   - Realistic departure/arrival times with time zone adjustments
-   - Airport transfer calculations (1.5-2 hours minimum)
-   - Jet lag considerations in activity planning
-   - Luggage handling logistics
-
-2. 🏨 ACCOMMODATION (MUST INCLUDE):
-   - 3 hotel options (luxury/budget/mid-range) with booking links
-   - Hotel-specific amenities (pool, gym, breakfast)
-   - Strategic location recommendations near attractions
-   - Safety considerations for neighborhoods
-
-3. 🍽️ GASTRONOMY (MUST INCLUDE):
-   - 3 meals/day with price ranges (local currency)
-   - Must-try local dishes with cultural context
-   - Dietary options (vegetarian, halal, vegan)
-   - Restaurant booking links (Zomato/Google Maps)
-
-4. 🗓️ ACTIVITIES (MUST INCLUDE):
-   - Time-optimized routes with map links
-   - Activity booking platforms (Klook/GetYourGuide)
-   - Weather-dependent activity alternatives
-   - Cultural etiquette tips for each activity
+1. Create a COMPLETE {duration}-day itinerary INCLUDING flight schedules and travel logistics
+2. Account for flight departure/arrival times and jet lag
+3. Include realistic travel times between airports and hotels
+4. Adjust activities based on actual arrival/departure times
+5. Include specific prices in INR for all items
 
 TRIP DETAILS:
 - Origin: {trip_data['origin']}
 - Destination: {trip_data['destination']}
-- Dates: {all_dates[0].strftime('%B %d, %Y')} to {all_dates[-1].strftime('%B %d, %Y')}
+- Transport Mode: {trip_data['transport']}
+- Duration: {duration} days
+- Dates: {', '.join(all_dates)}
 - Budget: {trip_data['budget']}
-- Travelers: 2 adults
+- Accommodation: {trip_data['stay']}
 - Interests: {trip_data['activities']}
 
-FORMAT:
-# 🌍 {duration}-Day {trip_data['destination']} Ultimate Adventure
+CRITICAL FLIGHT INFORMATION TO INCLUDE:
+- For international flights from India: Include realistic evening departure times
+- Include flight duration and arrival times (accounting for time zone: {time_zone_diff})
+- Include airport transfer times (1-2 hours each way)
+- For return flights: Include departure times and travel to airport
+- Account for check-in times (3 hours for international flights)
+
+EXACT OUTPUT FORMAT REQUIRED:
+# {duration}-Day {trip_data['destination']} Adventure
 **Travel Period:** {start_date.strftime('%B %d')} - {end_date.strftime('%B %d, %Y')}
 
-## ✈️ FLIGHT DETAILS
-**Outbound Journey** (From {trip_data['origin']} to {trip_data['destination']})
-- Departure: 9:00 PM from Delhi
-- Flight Duration: e.g., Delhi-Paris: 8h45m
-- Arrival: Next day 6:00 AM local time (Time Diff: -4.5h)
-- Airport Transfer: 1.5-hour taxi/Uber to hotel (₹X,XXX)
+## OUTBOUND FLIGHT DETAILS
+**{all_dates[0]} - Departure Day**
+- **6:00 PM:** Depart for Indira Gandhi International Airport, Delhi
+- **9:00 PM:** Flight departure to {trip_data['destination']} (₹X,XXX per person)
+- **Flight Duration:** X hours XX minutes
+- **Arrival:** Next day {arrival_time} local time
+- **Airport Transfer:** 1.5-hour taxi/Uber to hotel (₹X,XXX)
+- **Hotel Check-in:** 12:00 PM (store luggage if early)
 
-**Return Journey**
-- Departure: 3:00 PM from {trip_data['destination']} Airport
-- Arrival: 6:00 AM IST in Delhi next day
-
-## 🏨 ACCOMMODATION
-### Luxury Option
-- [Hotel Name] (https://booking.com/paris-luxury-hotel) 
-- Price: ₹X,XXX/night
-- Amenities: ✓ Rooftop view ✓ 24/7 concierge ✓ Pool
-
-### Mid-Range Option
-- [Hotel Name] (https://airbnb.com/paris-midrange) 
-- Price: ₹X,XXX/night
-- Amenities: ✓ Breakfast included ✓ Free WiFi
-
-### Budget Option
-- [Hostel Name] (https://hostelworld.com/paris-budget) 
-- Price: ₹X,XXX/night
-- Amenities: ✓ Free walking tours ✓ Kitchen access
-
-## 🗓️ DAY-BY-DAY ITINERARY
-
-## Day 1 - {all_dates[0].strftime('%A, %B %d')} (Arrival Day)
-**Flight Logistics**
-- 6:00 PM: Depart for Delhi Airport
-- 9:00 PM: Flight departure to {trip_data['destination']}
-- Arrival: Next day 6:00 AM local time
-- Airport Transfer: 1.5-hour taxi to hotel
-
+---
+## Day 1 - {all_dates[0]} (Arrival Day)
 **Afternoon (Post-transfer):**
 - Hotel check-in and rest
 - [Nearby restaurant]: Local cuisine dinner (₹800-1200/pax)
 - [Nearby attraction]: Light evening activity
 
-**Evening**
+**Evening:**
 - [Restaurant name]: Light meal recommendation
 - Packing tips for next day
 
-## Day 2 - {all_dates[1].strftime('%A, %B %d')}
+---
+## Day 2 - {all_dates[1]}
 **Morning (8:00 AM - 12:00 PM):**
 - [Specific attraction] (Book via Klook: [link]) - [Price]
 - [Local activity] with detailed timing
 
-**Afternoon (12:00 PM - 6:00 PM):**
+**Afternoon (12:00 PM - 6:00 PM):**  
 - [Iconic restaurant]: Lunch recommendation (₹1000-1500/pax)
 - [Cultural activity] with booking link (GetYourGuide: [link])
 
@@ -155,33 +122,48 @@ FORMAT:
 - [Night activity]: [Platform link] - [Price]
 - [Local bar/nightspot]: Drink recommendation
 
-[Continue pattern for all days...]
+[Continue this pattern for all days...]
 
-## Day {duration} - {all_dates[-1].strftime('%A, %B %d')} (Departure Day)
-**Morning:**
-- 8:00 AM: Hotel checkout and luggage storage
+---
+## Day {duration} - {all_dates[-1]} (Departure Day)
+**Morning (8:00 AM - 12:00 PM):**
+- **8:00 AM:** Hotel checkout and luggage storage
 - [Nearby attraction]: Morning activity near airport
 - [Quick bite location]: Breakfast recommendation
 
 **Afternoon:**
-- 2:00 PM: Depart for {trip_data['destination']} Airport
-- 3:00 PM: Arrive at airport for international departure
-- 6:00 PM: Flight departure to {trip_data['origin']}
+- **2:00 PM:** Depart for {trip_data['destination']} Airport  
+- **3:00 PM:** Arrive at airport for international departure
+- **6:00 PM:** Flight departure to Delhi (₹X,XXX per person)
+- **Flight Duration:** X hours XX minutes
+- **Next day arrival:** {return_arrival_time} in Delhi
 
-## 💵 BUDGET BREAKDOWN
-- ✈️ Flights: 30% of budget (Delhi-{trip_data['destination']})
-- 🏨 Hotels: 25% of budget ({duration-1} nights)
-- 🍽️ Food: 20% of budget ({duration} days)
-- 🎡 Activities: 15% of budget
-- 🚖 Local Transport: 10% of budget
-- 🧳 Emergency Fund: 5%
+## RETURN FLIGHT DETAILS
+**{(end_date + timedelta(days=1)).strftime('%B %d, %Y')} - Arrival in Delhi**
+- **Arrival:** {return_arrival_time} at IGI Airport, Delhi
+- **Airport transfer home:** ₹X,XXX
 
-## 🔗 BOOKING PLATFORMS
-- ✈️ Flights: MakeMyTrip, Cleartrip, Skyscanner
-- 🏨 Hotels: Booking.com, Airbnb, Hostelworld
-- 🎡 Activities: Klook, GetYourGuide
-- 🍽️ Restaurants: Zomato, Google Maps, TripAdvisor
-- 🗺️ Navigation: Google Maps, Citymapper
+## Budget Summary
+- **Round-trip Flights:** ₹X,XXX (Delhi-{trip_data['destination']}-Delhi)
+- **Airport Transfers:** ₹X,XXX
+- **Hotels ({duration-1} nights):** ₹X,XXX  
+- **Food ({duration} days):** ₹X,XXX
+- **Activities:** ₹X,XXX
+- **Local Transport:** ₹X,XXX
+- **TOTAL:** ₹X,XXX
+
+## Booking Platforms
+- **Flights:** MakeMyTrip, Cleartrip, Skyscanner
+- **Hotels:** Booking.com, Airbnb
+- **Activities:** Klook, GetYourGuide
+- **Restaurants:** Zomato, Google Maps
+
+CRITICAL: 
+- Include realistic flight times for {trip_data['origin']} to {trip_data['destination']}
+- Account for time zone differences
+- Adjust Day 1 activities for late arrival and jet lag
+- Adjust final day activities for departure logistics
+- Include all airport transfers and check-in times
 
 Would you like to refine any aspect of this itinerary?"""
 
@@ -193,7 +175,7 @@ Would you like to refine any aspect of this itinerary?"""
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=3500
+            max_tokens=3500   # Increased for flight details
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -211,6 +193,7 @@ if user_input:
             "content": "👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**\nTo help you better, please fill out your travel details below."
         })
     else:
+        # Handle regular chat queries
         try:
             from_date_str = st.session_state.trip_context.get("from_date", "")
             to_date_str = st.session_state.trip_context.get("to_date", "")
@@ -271,6 +254,7 @@ if st.session_state.show_form and not st.session_state.form_submitted:
         activities = st.text_area("🎯 Activities", placeholder="e.g., beaches, hiking, shopping", key="activities_input")
         submit = st.form_submit_button("🚀 Generate My Itinerary", use_container_width=True)
         if submit:
+            # Validation
             if not origin.strip():
                 st.error("❌ Please enter your origin city!")
             elif not destination.strip():
@@ -278,10 +262,13 @@ if st.session_state.show_form and not st.session_state.form_submitted:
             elif to_date < from_date:
                 st.error("❌ End date must be after start date!")
             else:
+                # Show immediate feedback
                 st.success("✅ Creating your personalized itinerary...")
+                # Mark form as submitted to prevent re-rendering
                 st.session_state.form_submitted = True
                 st.session_state.show_form = False
                 st.session_state.generating_itinerary = True
+                # Save trip context
                 trip_data = {
                     "origin": origin.strip(),
                     "destination": destination.strip(),
@@ -293,13 +280,15 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                     "activities": activities.strip()
                 }
                 st.session_state.trip_context = trip_data
-                with st.spinner("🎯 Crafting your detailed multi-day itinerary..."):
+                # Generate itinerary
+                with st.spinner("🎯 Crafting your detailed multi-day itinerary... This may take a moment."):
                     itinerary = generate_itinerary(trip_data)
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
                     st.session_state.generating_itinerary = False
+                # Force refresh to show the new message
                 st.rerun()
 
-# ----------------- ONGOING ITINERARY GENERATION -----------------
+# Handle ongoing itinerary generation
 if st.session_state.generating_itinerary:
     with st.spinner("🎯 Still working on your itinerary..."):
         pass
