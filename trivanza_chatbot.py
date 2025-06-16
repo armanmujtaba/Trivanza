@@ -2,10 +2,28 @@ import streamlit as st
 from openai import OpenAI
 import re
 from datetime import date
+import requests
 
 # --------- CONFIG ---------
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
-client = OpenAI()  # ✅ New OpenAI client
+client = OpenAI()
+
+# --------- WEATHER HELPERS ---------
+OPENWEATHER_API_KEY = "c7410425e996d5fa16ed7f3c2835a73c"
+def get_weather(city):
+    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric"
+    try:
+        response = requests.get(url)
+        data = response.json()
+        if data.get("cod") != 200:
+            return None
+        weather = data["weather"][0]["description"].capitalize()
+        temp = data["main"]["temp"]
+        humidity = data["main"]["humidity"]
+        wind_speed = data["wind"]["speed"]
+        return f"Current weather in {city.title()}: {weather}, {temp}°C, Humidity: {humidity}%, Wind Speed: {wind_speed} m/s"
+    except Exception:
+        return None
 
 # --------- SESSION INIT ---------
 if "messages" not in st.session_state:
@@ -151,7 +169,13 @@ if submitted and user_input:
     greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
     travel_keywords = ["trip", "flight", "itinerary", "weather", "hotel", "visa", "insurance", "food", "culture", "currency", "booking", "transport", "tour", "packing", "theft", "delay", "sightseeing"]
 
-    if any(greet in text_lower for greet in greetings) and not any(k in text_lower for k in travel_keywords):
+    # WEATHER DETECTION
+    weather_match = re.search(r"(?:weather|forecast)\s*(?:in)?\s*(\w+(?:\s\w+)*)", text_lower)
+    if weather_match:
+        city = weather_match.group(1).strip()
+        weather_info = get_weather(city)
+        assistant_response = weather_info or f"❌ Could not find weather info for {city}."
+    elif any(greet in text_lower for greet in greetings) and not any(k in text_lower for k in travel_keywords):
         assistant_response = greeting_message
     elif not any(k in text_lower for k in travel_keywords):
         assistant_response = fallback_message
