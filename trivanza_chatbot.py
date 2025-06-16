@@ -147,7 +147,16 @@ I'm excited to help you with your travel plans.
 
 fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
-with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitted):
+def is_greeting_or_planning(text):
+    greetings = [
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
+        "plan", "itinerary", "plan my trip", "journey", "my journey", "trip planning",
+        "plan itinerary", "plan my itinerary"
+    ]
+    text_lower = text.lower()
+    return any(greet in text_lower for greet in greetings)
+
+with st.expander("📋 Plan My Trip", expanded=False):  # Default minimized
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
 
@@ -265,7 +274,6 @@ user_input = st.chat_input(placeholder="How may I help you today?")
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     text_lower = user_input.lower()
-    greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "plan", "itinerary", "plan my trip", "journey", "my journey"]
     words = re.findall(r'\w+', text_lower)
     travel_keywords = [
         "travel", "trip", "holiday", "vacation", "hotel", "flight",
@@ -279,40 +287,25 @@ if user_input:
     stemmed_keywords = set(ps.stem(k) for k in travel_keywords)
     is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
 
-    currency_type = "₹ INR"
-    if "trip_context" in st.session_state and st.session_state.trip_context:
-        currency_type = st.session_state.trip_context.get("currency_type", "₹ INR")
-    currency_instruction = (
-        "Please ensure all costs are shown in Indian Rupees (₹, INR)."
-        if currency_type.startswith("₹")
-        else f"Please show all costs in {currency_type}."
-    )
-
-    trip_ctx = st.session_state.trip_context or {}
-    destination = trip_ctx.get("destination", "Destination")
-    from_date = trip_ctx.get("from_date", date.today())
-    month = from_date.strftime('%B')
-
-    if user_input.lower().startswith("analyze review:"):
-        review = user_input.split(":", 1)[1]
-        sentiment = analyze_sentiment(review)
-        assistant_response = f"Sentiment Analysis: {sentiment}"
-    elif user_input.lower().startswith("recommend destinations"):
-        preferences = user_input.split(":", 1)[1] if ":" in user_input else ""
-        recommendations = recommend_destinations(st.session_state.user_history, preferences)
-        assistant_response = f"Recommended Destinations:\n{recommendations}"
-    elif user_input.lower().startswith("detect language:"):
-        phrase = user_input.split(":", 1)[1]
-        assistant_response = detect_and_translate(phrase)
-    elif user_input.lower().startswith("analyze image:"):
-        image_url = user_input.split(":", 1)[1].strip()
-        assistant_response = recognize_destination(image_url)
-    elif any(greet in text_lower for greet in greetings) and not is_travel_related:
+    if is_greeting_or_planning(user_input):
         assistant_response = greeting_message
     elif not is_travel_related:
         assistant_response = fallback_message
     else:
         try:
+            currency_type = "₹ INR"
+            if "trip_context" in st.session_state and st.session_state.trip_context:
+                currency_type = st.session_state.trip_context.get("currency_type", "₹ INR")
+            currency_instruction = (
+                "Please ensure all costs are shown in Indian Rupees (₹, INR)."
+                if currency_type.startswith("₹")
+                else f"Please show all costs in {currency_type}."
+            )
+            trip_ctx = st.session_state.trip_context or {}
+            destination = trip_ctx.get("destination", "Destination")
+            from_date = trip_ctx.get("from_date", date.today())
+            month = from_date.strftime('%B')
+
             user_instructions = (
                 "IMPORTANT:\n"
                 "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
