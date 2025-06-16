@@ -2,6 +2,7 @@
 import streamlit as st
 from openai import OpenAI
 from datetime import date, timedelta
+import re
 
 # ----------------- CONFIG (MUST BE FIRST STREAMLIT COMMAND) -----------------
 st.set_page_config(page_title="TRIVANZA", page_icon="✈️", layout="centered")
@@ -12,27 +13,27 @@ client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 # ----------------- CUSTOM HEADER -----------------
 st.markdown("""
 <style>
-    .logo-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin-bottom: 10px;
-    }
+.logo-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.logo {
+    width: 300px;
+}
+@media (min-width: 601px) {
     .logo {
-        width: 300px;
+        width: 350px;
     }
-    @media (min-width: 601px) {
-        .logo {
-            width: 350px;
-        }
-    }
+}
 </style>
 <div class="logo-container">
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- SESSION STATE INIT -----------------   
+# ----------------- SESSION STATE INIT -----------------  
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "show_form" not in st.session_state:
@@ -48,65 +49,75 @@ if "generating_itinerary" not in st.session_state:
 def get_search_url(platform, destination, query):
     """Generate working search URLs for platforms"""
     domains = {
-        "booking": "https://booking.com", 
-        "zomato": "https://zomato.com", 
-        "klook": "https://klook.com", 
-        "getyourguide": "https://getyourguide.com", 
-        "airbnb": "https://airbnb.com", 
-        "hostelworld": "https://hostelworld.com", 
-        "googlemaps": "https://maps.google.com", 
+        "booking": "https://booking.com",  
+        "zomato": "https://zomato.com",  
+        "klook": "https://klook.com",  
+        "getyourguide": "https://getyourguide.com",  
+        "airbnb": "https://airbnb.com",  
+        "hostelworld": "https://hostelworld.com",  
+        "googlemaps": "https://maps.google.com",  
         "citymapper": "https://citymapper.com" 
     }
     encoded_query = "+".join(query.split())
     return f"{domains[platform]}/search?q={destination}+{encoded_query}"
 
 def generate_itinerary(trip_data):
-    """Generate itinerary using OpenAI API with full flight logic and advanced preferences"""
+    """Generate itinerary using OpenAI API with safe budget parsing"""
+    # Calculate all dates in the trip
     start_date = trip_data["from_date"]
     end_date = trip_data["to_date"]
     duration = (end_date - start_date).days + 1
     all_dates = [start_date + timedelta(days=i) for i in range(duration)]
+
+    # Safely parse budget input
+    budget_str = trip_data["budget"].strip()
+    cleaned_budget = re.sub(r'[^\d.]', '', budget_str)
     
-    # Budget calculations
-    total_budget = int(trip_data["budget"].replace("₹", "").strip())
+    try:
+        total_budget = int(cleaned_budget)
+    except ValueError:
+        st.warning("⚠️ Invalid budget format. Using default ₹50,000 for planning.")
+        total_budget = 50000
+    
+    # Budget allocation based on budget_type
     budget_type = trip_data.get("budget_type", "Mid-Budget")
-    
     if budget_type == "Luxury":
         flight_pct, hotel_pct, food_pct = 40, 30, 15
     elif budget_type == "Budget":
         flight_pct, hotel_pct, food_pct = 20, 20, 25
     else:  # Mid-Budget
         flight_pct, hotel_pct, food_pct = 30, 25, 20
-    
+
+    # Time zone difference
+    time_zone_diff = "-4.5 hours" if "europe" in trip_data["destination"].lower() else "-10 hours"
+
     # Interest-based recommendations
     interest = trip_data.get("custom_activities", [])
     interest_details = {
         "street food": """
-- Local food markets with safety tips
-- Street food tours with tasting notes
+- Local food markets with safety tips  
+- Street food tours with tasting notes  
 - Best street food for dietary preferences""",
         "hiking": """
-- National park passes and guided tours
-- Trail difficulty ratings
+- National park passes and guided tours  
+- Trail difficulty ratings  
 - Equipment rental options""",
         "shopping": """
-- Local market hours and negotiation tips
-- Duty-free shopping strategies
+- Local market hours and negotiation tips  
+- Duty-free shopping strategies  
 - Luxury shopping districts""",
         "nightlife": """
-- Top night clubs and bars
-- Late-night transportation tips
+- Top night clubs and bars  
+- Late-night transportation tips  
 - Safety guidelines for nightlife"""
     }
 
-    # Time zone calculation
-    time_zone_diff = "-4.5 hours" if "europe" in trip_data["destination"].lower() else "-10 hours"
-
-    prompt = f"""You are TRIVANZA, the world's most advanced AI travel concierge. Create a COMPLETE {duration}-day itinerary that considers:
+    # Build the prompt
+    prompt = f"""You are TRIVANZA, a professional travel planning assistant. Create a COMPLETE {duration}-day itinerary that considers:
 
 MANDATORY REQUIREMENTS:
 1. BUDGET VARIANTS: 
-   - Generate based on {trip_data.get('budget_type', 'Mid-Budget')}
+   - Generate based on {budget_type}
    - Adjust prices for accommodations and activities
    - Include realistic price ranges for all items
 
@@ -123,10 +134,10 @@ TRIP DETAILS:
 - Origin: {trip_data['origin']}
 - Destination: {trip_data['destination']}
 - Dates: {', '.join(date.strftime('%B %d') for date in all_dates)}
-- Budget: {trip_data['budget']} ({trip_data.get('budget_type', 'Mid-Budget')})
+- Budget: {trip_data['budget']} ({budget_type})
 - Interests: {', '.join(interest)}
 - Group Size: {trip_data.get('group_size', '2 people')}
-- Dietary Preferences: {', '.join(trip_data.get('dietary_pref', ['None']))}
+- Dietary Preferences: {', '.join(trip_data.get('dietary_pref', ['None']) or ['None'])}
 
 CRITICAL LINK RULES:
 - All links must be in [Text](URL) format
@@ -135,7 +146,7 @@ CRITICAL LINK RULES:
 - Include map links where applicable
 
 EXACT OUTPUT FORMAT REQUIRED:
-# 🌍 {duration}-Day {trip_data['destination']} {trip_data.get('budget_type', 'Mid-Budget')} Adventure 
+# 🌍 {duration}-Day {trip_data['destination']} {budget_type} Adventure 
 **Travel Period:** {start_date.strftime('%B %d')} - {end_date.strftime('%B %d, %Y')}
 **Time Zone Difference:** {time_zone_diff}
 **Currency:** INR
@@ -152,7 +163,7 @@ EXACT OUTPUT FORMAT REQUIRED:
 - Arrival: 6:00 AM IST in Delhi next day
 
 ## 🏨 ACCOMMODATION
-### {trip_data.get('budget_type', 'Mid-Budget')} Option
+### {budget_type} Option
 - [Hotel Name]({get_search_url('booking', trip_data['destination'], 'hotel')})
   - Price: ₹X,XXX/night
   - Amenities: ✓ Rooftop view ✓ 24/7 concierge ✓ Pool
@@ -187,16 +198,23 @@ EXACT OUTPUT FORMAT REQUIRED:
 - [Night Activity]({get_search_url('klook', trip_data['destination'], 'night activity')}) – ₹X,XXX
 - [Local Bar/Nightspot]({get_search_url('zomato', trip_data['destination'], 'bar nightspot')}) – ₹X,XXX
 
-continue this pattern for all days...
+## Day {duration} - {all_dates[-1].strftime('%A, %B %d')} (Departure Day)
+**Morning (8:00 AM - 12:00 PM):**
+- **8:00 AM:** Hotel checkout and luggage storage
+- [Nearby attraction]({get_search_url('getyourguide', trip_data['destination'], 'airport nearby activity')}) – Light morning activity
+
+**Afternoon:**
+- **2:00 PM:** Depart for {trip_data['destination']} Airport  
+- **3:00 PM:** Arrive at airport for international departure
+- **6:00 PM:** Flight departure to Delhi (₹X,XXX per person)
 
 ## 💵 BUDGET BREAKDOWN
-- ✈️ Flights: {flight_pct}% of budget (Delhi-{trip_data['destination']}) – ₹X,XXX
-- 🏨 Hotels: {hotel_pct}% of budget ({duration-1} nights) – ₹X,XXX
-- 🍽️ Food: {food_pct}% of budget ({duration} days) – ₹X,XXX
-- 🎡 Activities: 15% of budget – ₹X,XXX
-- 🚖 Local Transport: 10% of budget – ₹X,XXX
-- 🧳 Emergency Fund: 5% – ₹X,XXX
-- 💰 Total - – ₹X,XXX
+- ✈️ Flights: {flight_pct}% of budget (Delhi-{trip_data['destination']})
+- 🏨 Hotels: {hotel_pct}% of budget ({duration-1} nights)
+- 🍽️ Food: {food_pct}% of budget ({duration} days)
+- 🎡 Activities: 15% of budget
+- 🚖 Local Transport: 10% of budget
+- 🧳 Emergency Fund: 5%
 
 ## 📌 INTEREST-BASED RECOMMENDATIONS
 {"\n".join([f"- {detail}" for interest_type in interest for detail in interest_details.get(interest_type, "").split("\n")])}
@@ -218,7 +236,7 @@ Would you like to refine any aspect of this itinerary?"""
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
-            max_tokens=3500   # Increased for flight details
+            max_tokens=3500
         )
         return response.choices[0].message.content
     except Exception as e:
@@ -233,9 +251,10 @@ if user_input:
         st.session_state.form_submitted = False
         st.session_state.messages.append({
             "role": "assistant",
-            "content": "👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**"
+            "content": "👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**\nTo help you better, please fill out your travel details below."
         })
     else:
+        # Handle regular chat queries
         try:
             from_date_str = st.session_state.trip_context.get("from_date", "")
             to_date_str = st.session_state.trip_context.get("to_date", "")
@@ -288,7 +307,7 @@ if st.session_state.show_form and not st.session_state.form_submitted:
             traveler_type = st.selectbox("🧍 Traveler Type", ["Solo", "Couple", "Family", "Group"], key="traveler_type")
         with col2:
             group_size = st.number_input("👥 Group Size", min_value=1, value=2, key="group_size")
-            
+        
         # Origin & Destination
         st.markdown("#### 📍 Destination & Dates")
         col3, col4 = st.columns(2)
@@ -360,7 +379,7 @@ if st.session_state.show_form and not st.session_state.form_submitted:
         # Budget Tier
         st.markdown("#### 💰 Budget Tier")
         budget_type = st.selectbox("Select Budget Type", ["Luxury", "Mid-Budget", "Budget"], key="budget_type")
-        
+
         # Budget & Accommodation
         st.markdown("#### 💵 Budget & Stay")
         col11, col12 = st.columns(2)
@@ -382,6 +401,8 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                 st.error("❌ Please enter your destination!")
             elif to_date < from_date:
                 st.error("❌ End date must be after start date!")
+            elif not re.match(r'^[₹$]?\d+(?:,\d{3})*(?:\.\d{1,2})?$', budget.strip()):
+                st.error("❌ Please enter budget in format: ₹50000 or $800")
             else:
                 # Show immediate feedback
                 st.success("✅ Creating your personalized itinerary...")
