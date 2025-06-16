@@ -114,7 +114,7 @@ if "user_history" not in st.session_state:
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
 
-# ---- Fix the logo at the top, always visible ----
+# ---- Fix the logo at the top, always visible, no background box ----
 st.markdown("""
 <style>
 .logo-fixed {
@@ -124,9 +124,6 @@ st.markdown("""
     transform: translateX(-50%);
     width: 320px;
     z-index: 1002;
-    background: white;
-    border-radius: 0 0 16px 16px;
-    box-shadow: 0 2px 12px #0001;
     padding: 0.5em 1em 0.8em 1em;
     margin-top: 0;
 }
@@ -137,9 +134,6 @@ st.markdown("""
     .logo-fixed { width: 96vw !important; }
     .logo-spacer { height: 85px; }
 }
-.stChatInputContainer { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 1001; }
-.stChatInputContainer textarea { min-height: 2.5em; }
-.appview-container .main { padding-bottom: 8em !important; }
 </style>
 <div class="logo-fixed">
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true" style="width:100%;margin-bottom:-8px;">
