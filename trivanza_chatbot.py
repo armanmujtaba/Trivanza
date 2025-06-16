@@ -84,6 +84,8 @@ if "pending_form_response" not in st.session_state:
     st.session_state.pending_form_response = False
 if "user_history" not in st.session_state:
     st.session_state.user_history = []
+if "pending_llm_prompt" not in st.session_state:
+    st.session_state.pending_llm_prompt = None
 
 st.markdown("""
 <style>
@@ -181,6 +183,40 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 st.error("❌ Budget must be greater than 0")
             else:
                 st.success("✅ Generating your personalized itinerary...")
+
+                # --- Build user-friendly prompt for chat display ---
+                short_prompt = (
+                    f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
+                    f"Budget: {currency_type} {budget_amount}. "
+                    f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
+                    f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}. "
+                    f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
+                )
+                user_instructions = (
+                    "IMPORTANT: Format the itinerary just like this example:\n\n"
+                    "Day 1: Arrival in Hanoi\n"
+                    "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
+                    "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
+                    "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
+                    "🎯 Daily Total: ₹28,700\n\n"
+                    "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
+                    "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
+                    "Do not summarize. Do not skip any day. Use booking/info links for every major item."
+                )
+                full_prompt = (
+                    short_prompt +
+                    "\nFormat your answer in Markdown with clear headings, bullets, and cost tables.\n\n" +
+                    user_instructions
+                )
+
+                # Store only the short, human-friendly prompt as the user message
+                st.session_state.messages.append({
+                    "role": "user",
+                    "content": short_prompt
+                })
+                # Store the full LLM prompt for the next LLM call
+                st.session_state["pending_llm_prompt"] = full_prompt
+
                 trip_context = {
                     "origin": origin.strip(),
                     "destination": destination.strip(),
@@ -199,28 +235,6 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 }
                 st.session_state.trip_context = trip_context
                 st.session_state.user_history.append(trip_context)
-                user_instructions = (
-                    "IMPORTANT: Format the itinerary just like this example:\n\n"
-                    "Day 1: Arrival in Hanoi\n"
-                    "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
-                    "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
-                    "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
-                    "🎯 Daily Total: ₹28,700\n\n"
-                    "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
-                    "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
-                    "Do not summarize. Do not skip any day. Use booking/info links for every major item."
-                )
-                prompt = (
-                    f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
-                    f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
-                    f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}.\n"
-                    "Please ensure all costs are shown in Indian Rupees (₹, INR). Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n"
-                    f"{user_instructions}"
-                )
-                st.session_state.messages.append({
-                    "role": "user",
-                    "content": prompt
-                })
                 st.session_state.pending_form_response = True
                 st.session_state.form_submitted = True
                 st.rerun()
@@ -311,27 +325,10 @@ if submitted and user_input:
 
 if st.session_state.pending_form_response:
     try:
-        currency_type = st.session_state.trip_context.get("currency_type", "₹ INR") if st.session_state.trip_context else "₹ INR"
-        currency_instruction = (
-            "Please ensure all costs are shown in Indian Rupees (₹, INR)."
-            if currency_type.startswith("₹")
-            else f"Please show all costs in {currency_type}."
-        )
-        user_instructions = (
-            "IMPORTANT: Format the itinerary just like this example:\n\n"
-            "Day 1: Arrival in Hanoi\n"
-            "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
-            "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
-            "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
-            "🎯 Daily Total: ₹28,700\n\n"
-            "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
-            "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
-            "Do not summarize. Do not skip any day. Use booking/info links for every major item."
-        )
         messages = [{"role": "system", "content": system_content}] + st.session_state.messages
         messages.append({
             "role": "user",
-            "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n{user_instructions}"
+            "content": st.session_state["pending_llm_prompt"]
         })
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
