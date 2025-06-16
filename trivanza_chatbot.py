@@ -21,7 +21,6 @@ st.markdown("""
     .logo {
         width: 300px;
     }
-
     @media (min-width: 601px) {
         .logo {
             width: 350px;
@@ -33,7 +32,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ----------------- SESSION STATE INIT ----------------- 
+# ----------------- SESSION STATE INIT -----------------  
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "show_form" not in st.session_state:
@@ -47,41 +46,69 @@ if "generating_itinerary" not in st.session_state:
 
 # ----------------- HELPER FUNCTION -----------------
 def generate_itinerary(trip_data):
-    """Generate itinerary using OpenAI API with full flight logic"""
+    """Generate itinerary using OpenAI API with full flight logic and advanced preferences"""
     # Calculate all dates in the trip
     start_date = trip_data["from_date"]
     end_date = trip_data["to_date"]
     duration = (end_date - start_date).days + 1
-
+    
     # Create list of all dates
     all_dates = []
     current_date = start_date
     for i in range(duration):
         all_dates.append(current_date.strftime("%B %d, %Y"))
         current_date += timedelta(days=1)
-
+    
     # Calculate realistic flight times and time zones
     time_zone_diff = "-4.5 hours" if "europe" in trip_data["destination"].lower() else "-10 hours"
     arrival_time = "6:00 AM" if "europe" in trip_data["destination"].lower() else "11:00 AM"
     return_arrival_time = "6:00 AM IST"
 
-    prompt = f"""You are TRIVANZA, a professional travel planning assistant. 
+    prompt = f"""You are TRIVANZA, the world's most advanced AI travel concierge. Create a COMPLETE {duration}-day itinerary that considers:
+    
 MANDATORY REQUIREMENTS:
-1. Create a COMPLETE {duration}-day itinerary INCLUDING flight schedules and travel logistics
-2. Account for flight departure/arrival times and jet lag
-3. Include realistic travel times between airports and hotels
-4. Adjust activities based on actual arrival/departure times
-5. Include specific prices in INR for all items
+1. FLIGHT LOGISTICS (MUST INCLUDE):
+   - Realistic departure/arrival times with time zone adjustments
+   - Airport transfer calculations (1.5-2 hours minimum)
+   - Jet lag considerations in activity planning
+   - Luggage handling logistics
+
+2. ACCOMMODATION:
+   - 3 hotel options (luxury/budget/mid-range) with booking links
+   - Hotel-specific amenities (pool, gym, breakfast)
+   - Strategic location recommendations near attractions
+   - Safety considerations for neighborhoods
+
+3. GASTRONOMY:
+   - 3 meals/day with price ranges (local currency)
+   - Must-try local dishes with cultural context
+   - Dietary options (vegetarian, halal, vegan)
+   - Restaurant booking links (Zomato/Google Maps)
+
+4. ACTIVITIES:
+   - Time-optimized routes with map links
+   - Activity booking platforms (Klook/GetYourGuide)
+   - Weather-dependent activity alternatives
+   - Cultural etiquette tips for each activity
 
 TRIP DETAILS:
 - Origin: {trip_data['origin']}
 - Destination: {trip_data['destination']}
-- Transport Mode: {trip_data['transport']}
-- Duration: {duration} days
 - Dates: {', '.join(all_dates)}
 - Budget: {trip_data['budget']}
-- Accommodation: {trip_data['stay']}
-- Interests: {trip_data['activities']}
+- Travelers: {trip_data.get('traveler_type', '2 adults')}
+- Group Size: {trip_data.get('group_size', '2 people')}
+- Dietary Preferences: {', '.join(trip_data.get('dietary_pref', ['No specific preferences']))}
+- Language Preferences: {trip_data.get('language_pref', 'English')}
+- Accessibility Required: {trip_data.get('accessibility', False)}
+- Payment Methods: {', '.join(trip_data.get('payment_methods', ['Credit Card']))}
+- Flight Preferences: Class={trip_data.get('flight_class', 'Economy')}, Layover={trip_data.get('layover_pref', 'None')}
+- Cultural Sensitivity: {trip_data.get('cultural_pref', 'Standard')}
+- Health & Safety: Risk Tolerance={trip_data.get('risk_tolerance', 'Medium')}, Vaccination Status={trip_data.get('vaccination_status', 'Up-to-Date')}
+- Luggage Style: {trip_data.get('packing_style', 'Light Pack')}
+- Local Transport: {', '.join(trip_data.get('transport_pref', ['Public Transit']))}
+- Sustainability: {trip_data.get('sustainability', 'None')}
+- Custom Activities: {', '.join(trip_data.get('custom_activities', ['None']))}
 
 CRITICAL FLIGHT INFORMATION TO INCLUDE:
 - For international flights from India: Include realistic evening departure times
@@ -91,30 +118,57 @@ CRITICAL FLIGHT INFORMATION TO INCLUDE:
 - Account for check-in times (3 hours for international flights)
 
 EXACT OUTPUT FORMAT REQUIRED:
-# {duration}-Day {trip_data['destination']} Adventure
+# 🌍 {duration}-Day {trip_data['destination']} Ultimate Adventure
 **Travel Period:** {start_date.strftime('%B %d')} - {end_date.strftime('%B %d, %Y')}
+**Weather Forecast:** {trip_data.get('weather_forecast', 'N/A')}
+**Currency:** {trip_data.get('currency', 'INR')}
+**Time Zone Difference:** {time_zone_diff}
 
-## OUTBOUND FLIGHT DETAILS
-**{all_dates[0]} - Departure Day**
-- **6:00 PM:** Depart for Indira Gandhi International Airport, Delhi
-- **9:00 PM:** Flight departure to {trip_data['destination']} (₹X,XXX per person)
-- **Flight Duration:** X hours XX minutes
-- **Arrival:** Next day {arrival_time} local time
-- **Airport Transfer:** 1.5-hour taxi/Uber to hotel (₹X,XXX)
-- **Hotel Check-in:** 12:00 PM (store luggage if early)
+## ✈️ FLIGHT DETAILS
+**Outbound Journey** (From {trip_data['origin']} to {trip_data['destination']})
+- Departure: 9:00 PM from Delhi
+- Flight Duration: e.g., Delhi-Paris: 8h45m
+- Arrival: Next day 6:00 AM local time (Time Diff: {time_zone_diff})
+- Airport Transfer: 1.5-hour taxi/Uber to hotel (₹X,XXX)
 
----
+**Return Journey**
+- Departure: 3:00 PM from {trip_data['destination']} Airport
+- Arrival: 6:00 AM IST in Delhi next day
+
+## 🏨 ACCOMMODATION
+### Luxury Option
+- [Hotel Name] (https://booking.com/paris-luxury-hotel) 
+- Price: ₹X,XXX/night
+- Amenities: ✓ Rooftop view ✓ 24/7 concierge ✓ Pool
+
+### Mid-Range Option
+- [Hotel Name] (https://airbnb.com/paris-midrange) 
+- Price: ₹X,XXX/night
+- Amenities: ✓ Breakfast included ✓ Free WiFi
+
+### Budget Option
+- [Hostel Name] (https://hostelworld.com/paris-budget) 
+- Price: ₹X,XXX/night
+- Amenities: ✓ Free walking tours ✓ Kitchen access
+
+## 🗓️ DAY-BY-DAY ITINERARY
+
 ## Day 1 - {all_dates[0]} (Arrival Day)
+**Flight Logistics**
+- 6:00 PM: Depart for Delhi Airport
+- 9:00 PM: Flight departure to {trip_data['destination']}
+- Arrival: Next day 6:00 AM local time
+- Airport Transfer: 1.5-hour taxi to hotel
+
 **Afternoon (Post-transfer):**
 - Hotel check-in and rest
 - [Nearby restaurant]: Local cuisine dinner (₹800-1200/pax)
 - [Nearby attraction]: Light evening activity
 
-**Evening:**
+**Evening**
 - [Restaurant name]: Light meal recommendation
 - Packing tips for next day
 
----
 ## Day 2 - {all_dates[1]}
 **Morning (8:00 AM - 12:00 PM):**
 - [Specific attraction] (Book via Klook: [link]) - [Price]
@@ -128,9 +182,8 @@ EXACT OUTPUT FORMAT REQUIRED:
 - [Night activity]: [Platform link] - [Price]
 - [Local bar/nightspot]: Drink recommendation
 
-[Continue this pattern for all days...]
+[Continue pattern for all days...]
 
----
 ## Day {duration} - {all_dates[-1]} (Departure Day)
 **Morning (8:00 AM - 12:00 PM):**
 - **8:00 AM:** Hotel checkout and luggage storage
@@ -140,36 +193,22 @@ EXACT OUTPUT FORMAT REQUIRED:
 **Afternoon:**
 - **2:00 PM:** Depart for {trip_data['destination']} Airport  
 - **3:00 PM:** Arrive at airport for international departure
-- **6:00 PM:** Flight departure to Delhi (₹X,XXX per person)
-- **Flight Duration:** X hours XX minutes
-- **Next day arrival:** {return_arrival_time} in Delhi
+- **6:00 PM:** Flight departure to {trip_data['origin']}
 
-## RETURN FLIGHT DETAILS
-**{(end_date + timedelta(days=1)).strftime('%B %d, %Y')} - Arrival in Delhi**
-- **Arrival:** {return_arrival_time} at IGI Airport, Delhi
-- **Airport transfer home:** ₹X,XXX
+## 💵 BUDGET BREAKDOWN
+- ✈️ Flights: 30% of budget (Delhi-{trip_data['destination']})
+- 🏨 Hotels: 25% of budget ({duration-1} nights)
+- 🍽️ Food: 20% of budget ({duration} days)
+- 🎡 Activities: 15% of budget
+- 🚖 Local Transport: 10% of budget
+- 🧳 Emergency Fund: 5%
 
-## Budget Summary
-- **Round-trip Flights:** ₹X,XXX (Delhi-{trip_data['destination']}-Delhi)
-- **Airport Transfers:** ₹X,XXX
-- **Hotels ({duration-1} nights):** ₹X,XXX  
-- **Food ({duration} days):** ₹X,XXX
-- **Activities:** ₹X,XXX
-- **Local Transport:** ₹X,XXX
-- **TOTAL:** ₹X,XXX
-
-## Booking Platforms
-- **Flights:** MakeMyTrip, Cleartrip, Skyscanner
-- **Hotels:** Booking.com, Airbnb
-- **Activities:** Klook, GetYourGuide
-- **Restaurants:** Zomato, Google Maps
-
-CRITICAL: 
-- Include realistic flight times for {trip_data['origin']} to {trip_data['destination']}
-- Account for time zone differences
-- Adjust Day 1 activities for late arrival and jet lag
-- Adjust final day activities for departure logistics
-- Include all airport transfers and check-in times
+## 🔗 BOOKING PLATFORMS
+- ✈️ Flights: MakeMyTrip, Cleartrip, Skyscanner
+- 🏨 Hotels: Booking.com, Airbnb, Hostelworld
+- 🎡 Activities: Klook, GetYourGuide
+- 🍽️ Restaurants: Zomato, Google Maps, TripAdvisor
+- 🗺️ Navigation: Google Maps, Citymapper
 
 Would you like to refine any aspect of this itinerary?"""
 
@@ -236,7 +275,7 @@ Answer ONLY travel-related questions using this context.
 
 # ----------------- DISPLAY CHAT HISTORY -----------------
 for msg in st.session_state.messages:
-    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png"  if msg["role"] == "assistant" else None
+    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png"   if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
@@ -244,21 +283,100 @@ for msg in st.session_state.messages:
 if st.session_state.show_form and not st.session_state.form_submitted:
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
+        
+        # Basic Information
+        st.markdown("#### 🧑‍🤝‍🧑 Traveler Details")
         col1, col2 = st.columns(2)
         with col1:
-            origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi", key="origin_input")
+            traveler_type = st.selectbox("🧍 Traveler Type", 
+                                      ["Solo", "Couple", "Family", "Group"], key="traveler_type")
         with col2:
-            destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="dest_input")
+            group_size = st.number_input("👥 Group Size", min_value=1, value=2, key="group_size")
+            
+        # Origin & Destination
+        st.markdown("#### 📍 Destination & Dates")
         col3, col4 = st.columns(2)
         with col3:
-            from_date = st.date_input("📅 From Date", min_value=date.today(), key="from_date_input")
+            origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi", key="origin_input")
         with col4:
+            destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="dest_input")
+        
+        col5, col6 = st.columns(2)
+        with col5:
+            from_date = st.date_input("📅 From Date", min_value=date.today(), key="from_date_input")
+        with col6:
             to_date = st.date_input("📅 To Date", min_value=from_date, key="to_date_input")
-        transport = st.selectbox("🛫 Transport Mode", ["Flight", "Train", "Car", "Bus"], key="transport_input")
-        stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"], key="stay_input")
+        
+        # Preferences Section
+        st.markdown("#### 🎯 Travel Preferences")
+        col7, col8 = st.columns(2)
+        with col7:
+            dietary_pref = st.multiselect("🥗 Dietary Preferences", 
+                                        ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher", "Nut Allergy"], 
+                                        key="dietary_pref")
+            language_pref = st.selectbox("🌐 Preferred Language", 
+                                       ["English", "Hindi", "French", "Spanish", "Mandarin", "Local Phrases"], 
+                                       key="language_pref")
+            accessibility = st.checkbox("♿ Accessibility Required", key="accessibility")
+            payment_methods = st.multiselect("💳 Payment Methods", 
+                                          ["Credit Card", "Debit Card", "Cash", "Mobile Payment", "Local Bank Transfer"],
+                                          default=["Credit Card"],
+                                          key="payment_methods")
+            
+        with col8:
+            sustainability = st.selectbox("🌱 Sustainability Preference", 
+                                       ["None", "Eco-Friendly Stays", "Carbon Offset Flights", "Zero-Waste Activities"], 
+                                       key="sustainability")
+            flight_class = st.selectbox("✈️ Flight Class", 
+                                      ["Economy", "Premium Economy", "Business"], 
+                                      key="flight_class")
+            layover_pref = st.selectbox("⌛ Layover Preference", 
+                                       ["None", "Short", "Long"], 
+                                       key="layover_pref")
+            cultural_pref = st.selectbox("👗 Cultural Sensitivity", 
+                                       ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"], 
+                                       key="cultural_pref")
+        
+        # Advanced Preferences
+        st.markdown("#### 🧳 Advanced Preferences")
+        col9, col10 = st.columns(2)
+        with col9:
+            health_risk = st.selectbox("🛡️ Risk Tolerance", 
+                                      ["Low", "Medium", "High"], 
+                                      key="risk_tolerance")
+            vaccination = st.selectbox("💉 Vaccination Status", 
+                                     ["Up-to-Date", "Not Required", "Partially Vaccinated"], 
+                                     key="vaccination_status")
+        with col10:
+            packing_style = st.selectbox("🧳 Packing Style", 
+                                       ["Light Pack", "Full Suitcase", "Backpacking", "Luxury Travel"], 
+                                       key="packing_style")
+            transport_pref = st.multiselect("🚇 Local Transport", 
+                                         ["Public Transit", "Taxi", "Uber", "Car Rental", "Walking"],
+                                         default=["Public Transit"],
+                                         key="transport_pref")
+        
+        # Custom Interests
+        st.markdown("#### 🎨 Custom Interests")
+        custom_activities = st.multiselect("🎯 Interests",
+                                       ["Photography Spots", "Hidden Gems", "Adventure Sports", 
+                                        "Shopping", "Nightlife", "Cultural Immersion", "Foodie Tour"],
+                                       key="custom_activities")
+        
+        # Budget & Accommodation
+        st.markdown("#### 💰 Budget & Stay")
+        col11, col12 = st.columns(2)
+        with col11:
+            transport = st.selectbox("🛫 Transport Mode", ["Flight", "Train", "Car", "Bus"], key="transport_input")
+        with col12:
+            stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"], key="stay_input")
+        
         budget = st.text_input("💰 Budget (e.g., ₹50000 INR or $800 USD)", key="budget_input")
         activities = st.text_area("🎯 Activities", placeholder="e.g., beaches, hiking, shopping", key="activities_input")
+        
+        # Submit Button
         submit = st.form_submit_button("🚀 Generate My Itinerary", use_container_width=True)
+        
         if submit:
             # Validation
             if not origin.strip():
@@ -274,7 +392,8 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                 st.session_state.form_submitted = True
                 st.session_state.show_form = False
                 st.session_state.generating_itinerary = True
-                # Save trip context
+                
+                # Save trip context with all preferences
                 trip_data = {
                     "origin": origin.strip(),
                     "destination": destination.strip(),
@@ -283,14 +402,32 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                     "transport": transport,
                     "stay": stay,
                     "budget": budget.strip(),
-                    "activities": activities.strip()
+                    "activities": activities.strip(),
+                    "traveler_type": traveler_type,
+                    "group_size": str(group_size),
+                    "dietary_pref": dietary_pref,
+                    "language_pref": language_pref,
+                    "accessibility": accessibility,
+                    "payment_methods": payment_methods,
+                    "flight_class": flight_class,
+                    "layover_pref": layover_pref,
+                    "cultural_pref": cultural_pref,
+                    "risk_tolerance": health_risk,
+                    "vaccination_status": vaccination,
+                    "packing_style": packing_style,
+                    "transport_pref": transport_pref,
+                    "sustainability": sustainability,
+                    "custom_activities": custom_activities
                 }
+                
                 st.session_state.trip_context = trip_data
+                
                 # Generate itinerary
                 with st.spinner("🎯 Crafting your detailed multi-day itinerary... This may take a moment."):
                     itinerary = generate_itinerary(trip_data)
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
                     st.session_state.generating_itinerary = False
+                
                 # Force refresh to show the new message
                 st.rerun()
 
