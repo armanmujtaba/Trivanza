@@ -4,14 +4,7 @@ import re
 from datetime import date
 import requests
 
-import nltk
 from nltk.stem import PorterStemmer
-
-# Ensure NLTK punkt is downloaded (run once per environment)
-try:
-    nltk.data.find('tokenizers/punkt')
-except LookupError:
-    nltk.download('punkt')
 
 ps = PorterStemmer()
 
@@ -253,15 +246,9 @@ if submitted and user_input:
     text_lower = user_input.lower()
     greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
 
-    # Use nltk's word_tokenize for better splitting
-    words = nltk.word_tokenize(text_lower)
+    # Use regex tokenization for broad compatibility (no nltk punkt needed)
+    words = re.findall(r'\w+', text_lower)
     is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
-
-    # Debugging print statements (uncomment for troubleshooting)
-    # print("Tokenized words:", words)
-    # print("Stemmed words:", [ps.stem(word) for word in words])
-    # print("Stemmed keywords:", stemmed_keywords)
-    # print("is_travel_related:", is_travel_related)
 
     # Special commands:
     if user_input.lower().startswith("analyze review:"):
