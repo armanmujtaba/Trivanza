@@ -4,7 +4,7 @@ from openai import OpenAI
 from datetime import date, timedelta
 
 # ----------------- CONFIG (MUST BE FIRST STREAMLIT COMMAND) -----------------
-st.set_page_config(page_title="", page_icon="✈️", layout="centered")
+st.set_page_config(page_title="TRIVANZA", page_icon="✈️", layout="centered")
 
 # ----------------- INIT CLIENT AFTER CONFIG -----------------
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
@@ -23,8 +23,7 @@ st.markdown("""
 </style>
 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
-    <h2 class="header-text" style="margin: 0;">TRIVANZA</h2>
-</div>
+    </div>
 """, unsafe_allow_html=True)
 
 # ----------------- SESSION STATE INIT ----------------- 
