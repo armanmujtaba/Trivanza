@@ -126,7 +126,7 @@ TRIP DETAILS:
 - Budget: {trip_data['budget']} ({trip_data.get('budget_type', 'Mid-Budget')})
 - Interests: {', '.join(interest)}
 - Group Size: {trip_data.get('group_size', '2 people')}
-- Dietary Preferences: {', '.join(trip_data.get('dietary_pref', ['None'])}
+- Dietary Preferences: {', '.join(trip_data.get('dietary_pref', ['None']))}
 
 CRITICAL LINK RULES:
 - All links must be in [Text](URL) format
