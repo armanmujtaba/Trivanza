@@ -61,124 +61,151 @@ def get_search_url(platform, destination, query):
     encoded_query = "+".join(query.split())
     return f"{domains[platform]}/search?q={destination}+{encoded_query}"
 
+def calculate_arrival_time(trip_data):
+    """Calculate local arrival time based on time zone"""
+    if "europe" in trip_data["destination"].lower():
+        return "6:00 AM CET"
+    elif "usa" in trip_data["destination"].lower():
+        return "11:00 AM EST"
+    else:
+        return "6:00 AM Local Time"
+
 def generate_itinerary(trip_data):
-    """Generate itinerary using OpenAI API with safe budget parsing"""
-    # Calculate all dates in the trip
+    """Generate itinerary using OpenAI API with full flight logic and advanced preferences"""
     start_date = trip_data["from_date"]
     end_date = trip_data["to_date"]
     duration = (end_date - start_date).days + 1
     all_dates = [start_date + timedelta(days=i) for i in range(duration)]
 
-    # Safely parse budget input
-    budget_str = trip_data["budget"].strip()
-    cleaned_budget = re.sub(r'[^\d.]', '', budget_str)
-    
+    # Budget parsing
     try:
-        total_budget = int(cleaned_budget)
+        budget_amount = int(trip_data["budget_amount"])
     except ValueError:
-        st.warning("⚠️ Invalid budget format. Using default ₹50,000 for planning.")
-        total_budget = 50000
-    
-    # Budget allocation based on budget_type
+        st.warning("⚠️ Invalid budget amount. Using default ₹50,000 for planning.")
+        budget_amount = 50000
+
     budget_type = trip_data.get("budget_type", "Mid-Budget")
+    currency = trip_data.get("currency", "INR")
+
+    # Budget allocations
     if budget_type == "Luxury":
         flight_pct, hotel_pct, food_pct = 40, 30, 15
     elif budget_type == "Budget":
         flight_pct, hotel_pct, food_pct = 20, 20, 25
-    else:  # Mid-Budget
+    else:
         flight_pct, hotel_pct, food_pct = 30, 25, 20
 
-    # Time zone difference
+    # Calculate exact values
+    flights = (budget_amount * flight_pct) // 100
+    hotels = (budget_amount * hotel_pct) // 100
+    food = (budget_amount * food_pct) // 100
+    activities = (budget_amount * 15) // 100
+    transport = (budget_amount * 10) // 100
+    emergency = (budget_amount * 5) // 100
+
     time_zone_diff = "-4.5 hours" if "europe" in trip_data["destination"].lower() else "-10 hours"
 
     # Interest-based recommendations
     interest = trip_data.get("custom_activities", [])
     interest_details = {
         "street food": """
-- Local food markets with safety tips  
-- Street food tours with tasting notes  
+- Local food markets with safety tips
+- Street food tours with tasting notes
 - Best street food for dietary preferences""",
         "hiking": """
-- National park passes and guided tours  
-- Trail difficulty ratings  
+- National park passes and guided tours
+- Trail difficulty ratings
 - Equipment rental options""",
         "shopping": """
-- Local market hours and negotiation tips  
-- Duty-free shopping strategies  
+- Local market hours and negotiation tips
+- Duty-free shopping strategies
 - Luxury shopping districts""",
         "nightlife": """
-- Top night clubs and bars  
-- Late-night transportation tips  
+- Top night clubs and bars
+- Late-night transportation tips
 - Safety guidelines for nightlife"""
     }
 
-    # Build the prompt
-    prompt = f"""You are TRIVANZA, a professional travel planning assistant. Create a COMPLETE {duration}-day itinerary that considers:
+    prompt = f"""You are TRIVANZA, the world's most advanced AI travel concierge. Create a COMPLETE {duration}-day itinerary that considers:
 
 MANDATORY REQUIREMENTS:
-1. BUDGET VARIANTS: 
-   - Generate based on {budget_type}
-   - Adjust prices for accommodations and activities
-   - Include realistic price ranges for all items
+1. FULL DAY-BY-DAY COVERAGE:
+   - Include EVERY day from {all_dates[0].strftime('%B %d')} to {all_dates[-1].strftime('%B %d')}
+   - Generate a detailed plan for EACH day (no skipped days)
+   - Adjust activities for jet lag on Day 1
 
-2. INTEREST-BASED ACTIVITIES:
-   - Must include: {', '.join(interest)}
-   - Provide detailed activity descriptions with working links
+2. BUDGET CALCULATIONS:
+   - Use total budget: {currency}{budget_amount} ({budget_type})
+   - Calculate EXACT amounts from budget:
+     - ✈️ Flights: {flight_pct}% of total (₹{flights})
+     - 🏨 Hotels: {hotel_pct}% of total (₹{hotels})
+     - 🍽️ Food: {food_pct}% of total (₹{food})
+     - 🎡 Activities: 15% of total (₹{activities})
+     - 🚖 Local Transport: 10% of total (₹{transport})
+     - 🧳 Emergency Fund: 5% of total (₹{emergency})
 
 3. FUNCTIONAL LINKS:
-   - Use real platform domains (booking.com, zomato.com, etc.)
-   - Include search parameters in URLs for relevance
-   - Format: [Text](https://platform.com/search?q={{query}})
+   - All links must be in [Text](URL) format
+   - Use real platform domains with search parameters
+   - Example: [Eiffel Tower]({get_search_url('klook', trip_data['destination'], 'Eiffel Tower')})
 
 TRIP DETAILS:
 - Origin: {trip_data['origin']}
 - Destination: {trip_data['destination']}
 - Dates: {', '.join(date.strftime('%B %d') for date in all_dates)}
-- Budget: {trip_data['budget']} ({budget_type})
+- Budget: {currency}{budget_amount} ({budget_type})
 - Interests: {', '.join(interest)}
 - Group Size: {trip_data.get('group_size', '2 people')}
-- Dietary Preferences: {', '.join(trip_data.get('dietary_pref', ['None']) or ['None'])}
+- Dietary Preferences: {', '.join(trip_data.get('dietary_pref', ['None']))}
+- Traveler Type: {trip_data.get('traveler_type', '2 adults')}
 
-CRITICAL LINK RULES:
-- All links must be in [Text](URL) format
-- Use official domains: booking.com, zomato.com, getyourguide.com
-- Add search parameters for discoverability
-- Include map links where applicable
+CRITICAL LOGISTICS TO INCLUDE:
+- Realistic flight departure times (evening from India)
+- Time zone adjustments (e.g., Delhi to London: -5.5 hours)
+- Airport transfer times (1.5-2 hours)
+- Hotel check-in/out logistics
+- Jet lag considerations on Day 1
+- Return airport logistics on final day
 
 EXACT OUTPUT FORMAT REQUIRED:
-# 🌍 {duration}-Day {trip_data['destination']} {budget_type} Adventure 
+# 🌍 {duration}-Day {trip_data['destination']} {budget_type} Adventure
 **Travel Period:** {start_date.strftime('%B %d')} - {end_date.strftime('%B %d, %Y')}
 **Time Zone Difference:** {time_zone_diff}
-**Currency:** INR
+**Currency:** {currency}{budget_amount} ({trip_data.get('currency_type', 'INR')})
 
 ## ✈️ FLIGHT DETAILS
 **Outbound Journey**
-- Departure: 9:00 PM from Delhi
-- Flight Duration: e.g., Delhi-{trip_data['destination']}: 8h45m
-- Arrival: Next day 6:00 AM local time
-- Airport Transfer: 1.5-hour taxi to hotel (₹X,XXX)
+- **6:00 PM IST:** Depart for Indira Gandhi International Airport, Delhi
+- **9:00 PM IST:** Flight to {trip_data['destination']} ({trip_data.get('currency_type', 'INR')}{flights} per person)
+- **Flight Duration:** Delhi-{trip_data['destination']}: 8h45m
+- **Arrival:** Next day {calculate_arrival_time(trip_data)}
+- **Airport Transfer:** 1.5-hour taxi to hotel ({trip_data.get('currency_type', 'INR')}{3000 if currency == '₹' else 50})
 
 **Return Journey**
-- Departure: 3:00 PM from {trip_data['destination']} Airport
-- Arrival: 6:00 AM IST in Delhi next day
+- **Day {duration}:**
+  - **2:00 PM {trip_data['destination']} Time:** Depart for airport
+  - **3:00 PM {trip_data['destination']} Time:** Arrive at airport
+  - **6:00 PM {trip_data['destination']} Time:** Flight departure to Delhi ({trip_data.get('currency_type', 'INR')}{flights//2} per person)
+- **Next Day Arrival:** 6:00 AM IST in Delhi
 
 ## 🏨 ACCOMMODATION
 ### {budget_type} Option
-- [Hotel Name]({get_search_url('booking', trip_data['destination'], 'hotel')})
-  - Price: ₹X,XXX/night
+- [{trip_data['stay']} in {trip_data['destination']}]({get_search_url('booking', trip_data['destination'], trip_data['stay'])})
+  - Price: {trip_data.get('currency_type', 'INR')}{hotels//duration}/night (total: {trip_data.get('currency_type', 'INR')}{hotels})
   - Amenities: ✓ Rooftop view ✓ 24/7 concierge ✓ Pool
 
 ## 🗓️ DAY-BY-DAY ITINERARY
 
 ## Day 1 - {all_dates[0].strftime('%A, %B %d')} (Arrival Day)
 **Flight Logistics**
-- 6:00 PM: Depart for Delhi Airport
-- 9:00 PM: Flight to {trip_data['destination']}
-- Arrival: Next day 6:00 AM local time
+- 6:00 PM IST: Depart for Delhi Airport
+- 9:00 PM IST: Flight to {trip_data['destination']}
+- Arrival: Next day {calculate_arrival_time(trip_data)}
+- Airport Transfer: 1.5-hour taxi to hotel
 
 **Afternoon (Post-transfer):**
-- [Hotel Name]({get_search_url('booking', trip_data['destination'], 'hotel')}) check-in
-- [Local Cuisine Dinner]({get_search_url('zomato', trip_data['destination'], 'local cuisine')}) – ₹800-1200/pax
+- [{trip_data['stay']} in {trip_data['destination']}]({get_search_url('booking', trip_data['destination'], trip_data['stay'])}) check-in
+- [Local Cuisine Dinner]({get_search_url('zomato', trip_data['destination'], 'local cuisine')}) – {trip_data.get('currency_type', 'INR')}{food//duration} per person
 - [Nearby attraction]({get_search_url('getyourguide', trip_data['destination'], 'light evening activity')}) – Light evening activity
 
 **Evening:**
@@ -187,40 +214,60 @@ EXACT OUTPUT FORMAT REQUIRED:
 
 ## Day 2 - {all_dates[1].strftime('%A, %B %d')}
 **Morning (8:00 AM - 12:00 PM):**
-- [Specific attraction]({get_search_url('klook', trip_data['destination'], 'specific attraction')}) – ₹X,XXX
-- [Local activity]({get_search_url('getyourguide', trip_data['destination'], 'local activity')}) – ₹X,XXX
+- [Major Attraction]({get_search_url('klook', trip_data['destination'], 'major attraction')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
+- [Local Activity]({get_search_url('getyourguide', trip_data['destination'], 'local activity')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
 
 **Afternoon (12:00 PM - 6:00 PM):**
-- [Iconic Restaurant]({get_search_url('zomato', trip_data['destination'], 'iconic restaurant')}) – ₹X,XXX
-- [Cultural Activity]({get_search_url('getyourguide', trip_data['destination'], 'cultural activity')}) – ₹X,XXX
+- [Iconic Restaurant]({get_search_url('zomato', trip_data['destination'], 'iconic restaurant')}) – {trip_data.get('currency_type', 'INR')}{food//duration}
+- [Cultural Experience]({get_search_url('getyourguide', trip_data['destination'], 'cultural experience')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
 
 **Evening (6:00 PM - 10:00 PM):**
-- [Night Activity]({get_search_url('klook', trip_data['destination'], 'night activity')}) – ₹X,XXX
-- [Local Bar/Nightspot]({get_search_url('zomato', trip_data['destination'], 'bar nightspot')}) – ₹X,XXX
+- [Night Activity]({get_search_url('klook', trip_data['destination'], 'night activity')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
+- [Local Bar/Nightspot]({get_search_url('zomato', trip_data['destination'], 'bar nightspot')}) – {trip_data.get('currency_type', 'INR')}{food//duration}
+
+## Day 3 - {all_dates[2].strftime('%A, %B %d')}
+**Morning (8:00 AM - 12:00 PM):**
+- [Historical Site]({get_search_url('klook', trip_data['destination'], 'historical site')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
+- [Local Tour]({get_search_url('getyourguide', trip_data['destination'], 'local tour')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
+
+**Afternoon (12:00 PM - 6:00 PM):**
+- [Iconic Restaurant]({get_search_url('zomato', trip_data['destination'], 'iconic restaurant')}) – {trip_data.get('currency_type', 'INR')}{food//duration}
+- [Cultural Activity]({get_search_url('getyourguide', trip_data['destination'], 'cultural activity')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
+
+**Evening (6:00 PM - 10:00 PM):**
+- [Evening Show]({get_search_url('getyourguide', trip_data['destination'], 'evening show')}) – {trip_data.get('currency_type', 'INR')}{activities//duration}
+- [Casual Dinner]({get_search_url('zomato', trip_data['destination'], 'casual dinner')}) – {trip_data.get('currency_type', 'INR')}{food//duration}
 
 ## Day {duration} - {all_dates[-1].strftime('%A, %B %d')} (Departure Day)
 **Morning (8:00 AM - 12:00 PM):**
 - **8:00 AM:** Hotel checkout and luggage storage
 - [Nearby attraction]({get_search_url('getyourguide', trip_data['destination'], 'airport nearby activity')}) – Light morning activity
+- [Quick bite location]({get_search_url('zomato', trip_data['destination'], 'airport breakfast')}) – Breakfast recommendation
 
 **Afternoon:**
 - **2:00 PM:** Depart for {trip_data['destination']} Airport  
 - **3:00 PM:** Arrive at airport for international departure
-- **6:00 PM:** Flight departure to Delhi (₹X,XXX per person)
+- **6:00 PM:** Flight departure to Delhi ({trip_data.get('currency_type', 'INR')}{flights//2} per person)
+
+## RETURN FLIGHT DETAILS
+**{(end_date + timedelta(days=1)).strftime('%B %d, %Y')} - Arrival in Delhi**
+- **Arrival:** {calculate_arrival_time(trip_data)} at IGI Airport, Delhi
+- **Airport transfer home:** {trip_data.get('currency_type', 'INR')}3,000
 
 ## 💵 BUDGET BREAKDOWN
-- ✈️ Flights: {flight_pct}% of budget (Delhi-{trip_data['destination']})
-- 🏨 Hotels: {hotel_pct}% of budget ({duration-1} nights)
-- 🍽️ Food: {food_pct}% of budget ({duration} days)
-- 🎡 Activities: 15% of budget
-- 🚖 Local Transport: 10% of budget
-- 🧳 Emergency Fund: 5%
+- ✈️ Flights: {trip_data.get('currency_type', 'INR')}{flights} ({flight_pct}% of {trip_data.get('currency_type', 'INR')}{budget_amount})
+- 🏨 Hotels: {trip_data.get('currency_type', 'INR')}{hotels} ({hotel_pct}% of {trip_data.get('currency_type', 'INR')}{budget_amount})
+- 🍽️ Food: {trip_data.get('currency_type', 'INR')}{food} ({food_pct}% of {trip_data.get('currency_type', 'INR')}{budget_amount})
+- 🎡 Activities: {trip_data.get('currency_type', 'INR')}{activities} (15% of {trip_data.get('currency_type', 'INR')}{budget_amount})
+- 🚖 Local Transport: {trip_data.get('currency_type', 'INR')}{transport} (10% of {trip_data.get('currency_type', 'INR')}{budget_amount})
+- 🧳 Emergency Fund: {trip_data.get('currency_type', 'INR')}{emergency} (5% of {trip_data.get('currency_type', 'INR')}{budget_amount})
+- 💰 **Total:** {trip_data.get('currency_type', 'INR')}{budget_amount}
 
 ## 📌 INTEREST-BASED RECOMMENDATIONS
 {"\n".join([f"- {detail}" for interest_type in interest for detail in interest_details.get(interest_type, "").split("\n")])}
 
 ## 🔗 BOOKING PLATFORMS
-- ✈️ Flights: [MakeMyTrip](https://makemytrip.com),  [Cleartrip](https://cleartrip.com) 
+- ✈️ Flights: [MakeMyTrip](https://makemytrip.com),  [Skyscanner](https://skyscanner.com) 
 - 🏨 Hotels: [Booking.com](https://booking.com),  [Airbnb](https://airbnb.com) 
 - 🎡 Activities: [Klook](https://klook.com),  [GetYourGuide](https://getyourguide.com) 
 - 🍽️ Restaurants: [Zomato](https://zomato.com),  [Google Maps](https://maps.google.com) 
@@ -254,7 +301,6 @@ if user_input:
             "content": "👋 **Hello Traveller! Welcome to Trivanza – Your Smart Travel Buddy**\nTo help you better, please fill out your travel details below."
         })
     else:
-        # Handle regular chat queries
         try:
             from_date_str = st.session_state.trip_context.get("from_date", "")
             to_date_str = st.session_state.trip_context.get("to_date", "")
@@ -271,7 +317,7 @@ Destination: {st.session_state.trip_context.get("destination", "Not provided")}
 Travel Duration: {from_date_str} to {to_date_str}
 Transport: {st.session_state.trip_context.get("transport", "")}
 Stay: {st.session_state.trip_context.get("stay", "")}
-Budget: {st.session_state.trip_context.get("budget", "")}
+Budget: {st.session_state.trip_context.get("budget_amount", "")} {st.session_state.trip_context.get("currency_type", "")}
 Activities: {st.session_state.trip_context.get("activities", "")}
 Answer ONLY travel-related questions using this context.
                 """}
@@ -376,40 +422,38 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                                         "Shopping", "Nightlife", "Cultural Immersion", "Foodie Tour"],
                                        key="custom_activities")
         
-        # Budget Tier
-        st.markdown("#### 💰 Budget Tier")
-        budget_type = st.selectbox("Select Budget Type", ["Luxury", "Mid-Budget", "Budget"], key="budget_type")
-
         # Budget & Accommodation
-        st.markdown("#### 💵 Budget & Stay")
+        st.markdown("#### 💰 Budget & Stay")
         col11, col12 = st.columns(2)
         with col11:
             transport = st.selectbox("🛫 Transport Mode", ["Flight", "Train", "Car", "Bus"], key="transport_input")
         with col12:
             stay = st.selectbox("🏨 Accommodation", ["Hotel", "Hostel", "Airbnb", "Resort"], key="stay_input")
-        budget = st.text_input("💰 Budget (e.g., ₹50000 INR)", key="budget_input")
+        col13, col14 = st.columns(2)
+        with col13:
+            budget_amount = st.number_input("💰 Budget Amount", min_value=1000, step=1000, key="budget_amount")
+        with col14:
+            currency_type = st.selectbox("💱 Currency", ["₹ INR", "$ USD", "€ EUR", "£ GBP", "¥ JPY"], key="currency_type")
         activities = st.text_area("🎯 Activities", placeholder="e.g., beaches, hiking, shopping", key="activities_input")
         
         # Submit Button
         submit = st.form_submit_button("🚀 Generate My Itinerary", use_container_width=True)
         
         if submit:
-            # Validation
             if not origin.strip():
                 st.error("❌ Please enter your origin city!")
             elif not destination.strip():
                 st.error("❌ Please enter your destination!")
             elif to_date < from_date:
                 st.error("❌ End date must be after start date!")
+            elif budget_amount <= 0:
+                st.error("❌ Budget must be greater than 0")
             else:
-                # Show immediate feedback
                 st.success("✅ Creating your personalized itinerary...")
-                # Mark form as submitted to prevent re-rendering
                 st.session_state.form_submitted = True
                 st.session_state.show_form = False
                 st.session_state.generating_itinerary = True
-                
-                # Save trip context with all preferences
+
                 trip_data = {
                     "origin": origin.strip(),
                     "destination": destination.strip(),
@@ -417,7 +461,8 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                     "to_date": to_date,
                     "transport": transport,
                     "stay": stay,
-                    "budget": budget.strip(),
+                    "budget_amount": str(budget_amount),
+                    "currency_type": currency_type,
                     "activities": activities.strip(),
                     "traveler_type": traveler_type,
                     "group_size": str(group_size),
@@ -434,18 +479,15 @@ if st.session_state.show_form and not st.session_state.form_submitted:
                     "transport_pref": transport_pref,
                     "sustainability": sustainability,
                     "custom_activities": custom_activities,
-                    "budget_type": budget_type
+                    "budget_type": trip_data.get("budget_type", "Mid-Budget"),
+                    "currency": currency_type[0]
                 }
-                
+
                 st.session_state.trip_context = trip_data
-                
-                # Generate itinerary
-                with st.spinner("🎯 Crafting your detailed multi-day itinerary... This may take a moment."):
+                with st.spinner("🎯 Crafting your detailed multi-day itinerary..."):
                     itinerary = generate_itinerary(trip_data)
                     st.session_state.messages.append({"role": "assistant", "content": itinerary})
                     st.session_state.generating_itinerary = False
-                
-                # Force refresh to show the new message
                 st.rerun()
 
 # Handle ongoing itinerary generation
