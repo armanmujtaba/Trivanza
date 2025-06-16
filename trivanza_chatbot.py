@@ -1,12 +1,11 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 import re
-import requests
 from datetime import date
 
 # --------- CONFIG ---------
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
-openai.api_key = st.secrets.get("OPENAI_API_KEY")
+client = OpenAI()  # ✅ New OpenAI client
 
 # --------- SESSION INIT ---------
 if "messages" not in st.session_state:
@@ -35,6 +34,7 @@ st.markdown("""
         width: 350px;
     }
 }
+.chat-entry { margin-top: 10px; }
 </style>
 <div class="logo-container">
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
@@ -67,28 +67,78 @@ I'm excited to help you with your travel plans. Could you please share some deta
 
 fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
-# --------- WEATHER FUNCTION ---------
-def get_weather(city_name, api_key="c7410425e996d5fa16ed7f3c2835a73c"):
-    url = f"http://api.openweathermap.org/data/2.5/weather?q={city_name}&appid={api_key}&units=metric"
-    try:
-        response = requests.get(url)
-        data = response.json()
-        if data.get("cod") != 200:
-            return f"❌ Could not find weather info for {city_name}."
-        weather = data["weather"][0]["description"].capitalize()
-        temp = data["main"]["temp"]
-        feels_like = data["main"]["feels_like"]
-        humidity = data["main"]["humidity"]
-        wind_speed = data["wind"]["speed"]
-        return (
-            f"🌦️ **Weather in {city_name.title()}**:\n"
-            f"- Condition: {weather}\n"
-            f"- Temperature: {temp}°C (Feels like {feels_like}°C)\n"
-            f"- Humidity: {humidity}%\n"
-            f"- Wind Speed: {wind_speed} m/s"
-        )
-    except Exception as e:
-        return f"⚠️ Error getting weather: {e}"
+# --------- FORM ---------
+with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitted):
+    with st.form("travel_form", clear_on_submit=False):
+        st.markdown("### 🧳 Let's plan your perfect trip!")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            traveler_type = st.selectbox("🧍 Traveler Type", ["Solo", "Couple", "Family", "Group"])
+            group_size = st.number_input("👥 Group Size", min_value=1, value=2)
+        with col2:
+            origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi")
+            destination = st.text_input("📍 Destination", placeholder="e.g., Paris")
+        col3, col4 = st.columns(2)
+        with col3:
+            from_date = st.date_input("📅 From Date", min_value=date.today())
+        with col4:
+            to_date = st.date_input("📅 To Date", min_value=from_date)
+
+        st.markdown("#### 💰 Budget & Stay")
+        col5, col6 = st.columns(2)
+        with col5:
+            budget_amount = st.number_input("💰 Budget", min_value=1000, step=1000)
+        with col6:
+            currency_type = st.selectbox("💱 Currency", ["₹ INR", "$ USD", "€ EUR", "£ GBP", "¥ JPY"])
+        stay = st.selectbox("🏨 Stay Type", ["Hotel", "Hostel", "Airbnb", "Resort"])
+
+        st.markdown("#### 🎯 Preferences & Interests")
+        dietary_pref = st.multiselect("🥗 Dietary", ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher"])
+        sustainability = st.selectbox("🌱 Sustainability", ["None", "Eco-Friendly Stays", "Carbon Offset Flights", "Zero-Waste Activities"])
+        language_pref = st.selectbox("🌐 Language", ["English", "Hindi", "French", "Spanish", "Mandarin", "Local Phrases"])
+        cultural_pref = st.selectbox("👗 Cultural Sensitivity", ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"])
+        custom_activities = st.multiselect("🎨 Interests", [
+            "Beaches", "Hiking", "Shopping", "Nightlife",
+            "Cultural Immersion", "Foodie Tour", "Adventure Sports"
+        ])
+
+        submit = st.form_submit_button("🚀 Generate Itinerary")
+
+        if submit:
+            if not origin.strip():
+                st.error("❌ Enter your origin city!")
+            elif not destination.strip():
+                st.error("❌ Enter your destination!")
+            elif to_date < from_date:
+                st.error("❌ End date must be after start date!")
+            elif budget_amount <= 0:
+                st.error("❌ Budget must be greater than 0")
+            else:
+                st.success("✅ Generating your personalized itinerary...")
+                st.session_state.trip_context = {
+                    "origin": origin.strip(),
+                    "destination": destination.strip(),
+                    "from_date": from_date,
+                    "to_date": to_date,
+                    "traveler_type": traveler_type,
+                    "group_size": group_size,
+                    "dietary_pref": dietary_pref,
+                    "language_pref": language_pref,
+                    "sustainability": sustainability,
+                    "cultural_pref": cultural_pref,
+                    "custom_activities": custom_activities,
+                    "budget_amount": budget_amount,
+                    "currency_type": currency_type,
+                    "stay": stay
+                }
+                st.session_state.messages.append({
+                    "role": "user",
+                    "content": f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. Stay: {stay}. Interests: {', '.join(custom_activities)}. Language: {language_pref}. Sustainability: {sustainability}."
+                })
+                st.session_state.pending_form_response = True
+                st.session_state.form_submitted = True
+                st.rerun()
 
 # --------- CHAT MODULE ---------
 with st.form("chat_form", clear_on_submit=True):
@@ -103,25 +153,38 @@ if submitted and user_input:
 
     if any(greet in text_lower for greet in greetings) and not any(k in text_lower for k in travel_keywords):
         assistant_response = greeting_message
-    elif "weather" in text_lower:
-        match = re.search(r"weather in ([a-zA-Z\s]+)", text_lower)
-        city = match.group(1).strip() if match else text_lower.replace("weather", "").strip()
-        assistant_response = get_weather(city)
     elif not any(k in text_lower for k in travel_keywords):
         assistant_response = fallback_message
     else:
         try:
-            response = openai.ChatCompletion.create(
+            response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
                 temperature=0.7,
                 max_tokens=1200
             )
-            assistant_response = response.choices[0].message['content']
+            assistant_response = response.choices[0].message.content
         except Exception:
             assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
 
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+    st.rerun()
+
+# --------- PROCESS FORM-GENERATED MESSAGE ---------
+if st.session_state.pending_form_response:
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
+            temperature=0.7,
+            max_tokens=1200
+        )
+        assistant_response = response.choices[0].message.content
+    except Exception:
+        assistant_response = "Sorry, I'm unable to generate your itinerary right now."
+
+    st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+    st.session_state.pending_form_response = False
     st.rerun()
 
 # --------- DISPLAY CHAT ---------
