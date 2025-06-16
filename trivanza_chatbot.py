@@ -2,16 +2,13 @@ import streamlit as st
 from openai import OpenAI
 import re
 from datetime import date
-import requests
 from nltk.stem import PorterStemmer
 
 ps = PorterStemmer()
 
-# --------- CONFIG ---------
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
 
-# --------- SENTIMENT ANALYSIS HELPER ---------
 def analyze_sentiment(text):
     try:
         response = client.chat.completions.create(
@@ -27,7 +24,6 @@ def analyze_sentiment(text):
     except Exception:
         return "Sentiment analysis unavailable."
 
-# --------- LANGUAGE DETECTION & TRANSLATION HELPER ---------
 def detect_and_translate(text, target_language="English"):
     try:
         response = client.chat.completions.create(
@@ -43,7 +39,6 @@ def detect_and_translate(text, target_language="English"):
     except Exception:
         return "Language detection unavailable."
 
-# --------- IMAGE RECOGNITION HELPER (Stub for destination matching) ---------
 def recognize_destination(image_url):
     try:
         response = client.chat.completions.create(
@@ -59,7 +54,6 @@ def recognize_destination(image_url):
     except Exception:
         return "Image recognition unavailable."
 
-# --------- RECOMMENDATION ENGINE HELPER (Stub) ---------
 def recommend_destinations(user_history, preferences):
     try:
         prompt = (
@@ -80,7 +74,6 @@ def recommend_destinations(user_history, preferences):
     except Exception:
         return "Recommendations unavailable."
 
-# --------- SESSION INIT ---------
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "form_submitted" not in st.session_state:
@@ -92,7 +85,6 @@ if "pending_form_response" not in st.session_state:
 if "user_history" not in st.session_state:
     st.session_state.user_history = []
 
-# --------- CUSTOM HEADER ---------
 st.markdown("""
 <style>
 .logo-container {
@@ -116,23 +108,19 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# --------- SYSTEM PROMPT ---------
 system_content = (
-    "You are TRIVANZA Travel Assistant. Only answer travel-related questions within the following topics: "
-    "travel problem-solving (cancellations, theft, health issues), personalized itineraries (day-by-day, by budget, by interests, events), "
-    "real-time alerts (political unrest, flight delays), smart packing (checklists by weather & activity), "
-    "culture & language (local etiquette, translations), health & insurance (local medical help, insurance), "
-    "sustainable travel (eco-friendly stays, eco-transport), live translation (signs, speech, receipts), "
-    "budget & currency planning, and expense categories (flight, hotel, food, transport). "
-    "If the user asks anything outside these topics, reply with: \"This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions.\"\n"
-    "When planning a trip, you must:\n"
-    "- Provide a **detailed, day-by-day itinerary**. Each day must be a separate heading, with morning/afternoon/evening activities.\n"
-    "- For each day, recommend **specific flights, hotels (with eco-friendly options if requested), restaurants (with dietary preference), and places to visit**. Always include at least one booking link for each (use real or plausible booking URLs).\n"
-    "- Give a packing checklist based on the weather at the destination during the trip.\n"
-    "- Show a section with the **trip budget analysis**: Is the budget low, medium, or high for these preferences? Clearly state which costs are driving the total and if the budget is realistic.\n"
-    "- All costs must be shown in Indian Rupees (₹, INR).\n"
-    "- Use Markdown formatting: headings, bullet lists, and cost tables for clarity.\n"
-    "- If the user's budget is too low, calculate the actual cost and suggest cost-saving alternatives."
+    "You are TRIVANZA Travel Assistant. "
+    "For every trip request, ALWAYS reply in the following structure and style:\n\n"
+    "1. Friendly trip introduction with dates, title, and budget context.\n"
+    "2. For each day, use a heading (e.g., 'Day 1: Arrival in Bangkok') and list:\n"
+    "   - Each activity/expense as a bullet with an emoji, short label, cost in ₹, and a plausible booking or info link in brackets.\n"
+    "   - A daily total marked with 🎯 at the end of each day.\n"
+    "3. At the end, show 'Total Trip Cost: ₹xx,xxx'.\n"
+    "4. Include a short note that costs are estimates and can be adjusted.\n"
+    "Format in Markdown. Use only Indian Rupees (₹, INR) for all costs. "
+    "Include real or plausible booking/info links for flights, hotels, restaurants, and major activities. "
+    "Never summarize days; always list each one with this structure. "
+    "Include vegetarian options, eco-friendly stays, and the user's preferences if requested."
 )
 
 greeting_message = """Welcome to Trivanza: Your Smart Travel Companion  
@@ -145,7 +133,6 @@ I'm excited to help you with your travel plans. Could you please share some deta
 
 fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
 
-# --------- FORM ---------
 with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitted):
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
@@ -212,23 +199,23 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 }
                 st.session_state.trip_context = trip_context
                 st.session_state.user_history.append(trip_context)
-                # --- PATCHED INSTRUCTIONS ---
-                extra_instructions = (
-                    "Be sure to do ALL of the following:\n"
-                    "- Recommend specific flight options with booking links.\n"
-                    "- Recommend specific eco-friendly hotels in the destination with booking links.\n"
-                    "- Recommend restaurants and foodie experiences with booking links, honoring dietary preferences.\n"
-                    "- For each day, list at least one place or activity with a booking link.\n"
-                    "- Provide a packing checklist for the destination and dates.\n"
-                    "- At the end, include a table summarizing the total costs for flights, hotel, food, activities, and miscellaneous.\n"
-                    "- Analyze whether the user's entered budget is low, medium, or high for this trip and explain why."
+                user_instructions = (
+                    "IMPORTANT: Format the itinerary just like this example:\n\n"
+                    "Day 1: Arrival in Hanoi\n"
+                    "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
+                    "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
+                    "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
+                    "🎯 Daily Total: ₹28,700\n\n"
+                    "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
+                    "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
+                    "Do not summarize. Do not skip any day. Use booking/info links for every major item."
                 )
                 prompt = (
                     f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
                     f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
                     f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}.\n"
                     "Please ensure all costs are shown in Indian Rupees (₹, INR). Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n"
-                    f"{extra_instructions}"
+                    f"{user_instructions}"
                 )
                 st.session_state.messages.append({
                     "role": "user",
@@ -238,7 +225,6 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 st.session_state.form_submitted = True
                 st.rerun()
 
-# ------- KEYWORD MATCHING CONFIG --------
 travel_keywords = [
     "travel", "travelling", "trip", "vacation", "explore", "journey", "tour", "destination", "destinations",
     "summer", "india", "holiday", "beach", "mountain", "adventure", "hotel", "flight", "sightseeing", "tourist",
@@ -254,7 +240,6 @@ travel_keywords = [
 ]
 stemmed_keywords = set(ps.stem(k) for k in travel_keywords)
 
-# --------- CHAT MODULE ---------
 with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_input("💬 Ask Trivanza anything travel-related:")
     submitted = st.form_submit_button("Send")
@@ -266,7 +251,6 @@ if submitted and user_input:
     words = re.findall(r'\w+', text_lower)
     is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
 
-    # Detect currency preference from session or default to INR
     currency_type = "₹ INR"
     if "trip_context" in st.session_state and st.session_state.trip_context:
         currency_type = st.session_state.trip_context.get("currency_type", "₹ INR")
@@ -276,7 +260,6 @@ if submitted and user_input:
         else f"Please show all costs in {currency_type}."
     )
 
-    # Special commands:
     if user_input.lower().startswith("analyze review:"):
         review = user_input.split(":", 1)[1]
         sentiment = analyze_sentiment(review)
@@ -297,21 +280,21 @@ if submitted and user_input:
         assistant_response = fallback_message
     else:
         try:
-            # Add extra prompt to instruct formatting and INR usage and feature requirements
-            extra_instructions = (
-                "Be sure to do ALL of the following:\n"
-                "- Recommend specific flight options with booking links.\n"
-                "- Recommend specific eco-friendly hotels in the destination with booking links.\n"
-                "- Recommend restaurants and foodie experiences with booking links, honoring dietary preferences.\n"
-                "- For each day, list at least one place or activity with a booking link.\n"
-                "- Provide a packing checklist for the destination and dates.\n"
-                "- At the end, include a table summarizing the total costs for flights, hotel, food, activities, and miscellaneous.\n"
-                "- Analyze whether the user's entered budget is low, medium, or high for this trip and explain why."
+            user_instructions = (
+                "IMPORTANT: Format the itinerary just like this example:\n\n"
+                "Day 1: Arrival in Hanoi\n"
+                "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
+                "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
+                "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
+                "🎯 Daily Total: ₹28,700\n\n"
+                "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
+                "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
+                "Do not summarize. Do not skip any day. Use booking/info links for every major item."
             )
             messages = [{"role": "system", "content": system_content}] + st.session_state.messages
             messages.append({
                 "role": "user",
-                "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n{extra_instructions}"
+                "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n{user_instructions}"
             })
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -320,42 +303,35 @@ if submitted and user_input:
                 max_tokens=1800
             )
             assistant_response = response.choices[0].message.content
-
-            # Formatting tidy-up (ensure blank lines between days, headings bold)
-            assistant_response = re.sub(r'(Day \d+:)', r'**\1**', assistant_response)
-            assistant_response = re.sub(r'\*\*Day \d+:\*\*', lambda m: f"{m.group(0)}\n\n", assistant_response)
-            assistant_response = re.sub(r'(Total estimated cost[^\n]*)', r'**\1**', assistant_response)
-            assistant_response = re.sub(r'(Accommodation:|Activities:|Transportation:|Food:|Miscellaneous:|Total estimated cost for the trip:)', r'**\1**', assistant_response)
         except Exception:
             assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
 
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.rerun()
 
-# --------- PROCESS FORM-GENERATED MESSAGE ---------
 if st.session_state.pending_form_response:
     try:
-        # Add formatting and INR/currency prompt and feature requirements for form-based itinerary
         currency_type = st.session_state.trip_context.get("currency_type", "₹ INR") if st.session_state.trip_context else "₹ INR"
         currency_instruction = (
             "Please ensure all costs are shown in Indian Rupees (₹, INR)."
             if currency_type.startswith("₹")
             else f"Please show all costs in {currency_type}."
         )
-        extra_instructions = (
-            "Be sure to do ALL of the following:\n"
-            "- Recommend specific flight options with booking links.\n"
-            "- Recommend specific eco-friendly hotels in the destination with booking links.\n"
-            "- Recommend restaurants and foodie experiences with booking links, honoring dietary preferences.\n"
-            "- For each day, list at least one place or activity with a booking link.\n"
-            "- Provide a packing checklist for the destination and dates.\n"
-            "- At the end, include a table summarizing the total costs for flights, hotel, food, activities, and miscellaneous.\n"
-            "- Analyze whether the user's entered budget is low, medium, or high for this trip and explain why."
+        user_instructions = (
+            "IMPORTANT: Format the itinerary just like this example:\n\n"
+            "Day 1: Arrival in Hanoi\n"
+            "✈️ Flight: Vietnam Airlines (Delhi–Hanoi), ₹25,000 [Book: https://www.vietnamairlines.com/]\n"
+            "🏨 Stay: Hanoi Golden Moment Hotel, ₹2,500/night [Book: https://www.booking.com/]\n"
+            "🍽️ Lunch at Bun Cha Huong Lien – ₹500 [Zomato: https://www.zomato.com/]\n"
+            "🎯 Daily Total: ₹28,700\n\n"
+            "Each day must have a heading, each expense/activity must be a bullet with emoji, description, cost, and link. "
+            "Add a 🎯 Daily Total for that day. At the end, add 'Total Trip Cost: ₹xx,xxx'. "
+            "Do not summarize. Do not skip any day. Use booking/info links for every major item."
         )
         messages = [{"role": "system", "content": system_content}] + st.session_state.messages
         messages.append({
             "role": "user",
-            "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n{extra_instructions}"
+            "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n{user_instructions}"
         })
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
@@ -364,11 +340,6 @@ if st.session_state.pending_form_response:
             max_tokens=1800
         )
         assistant_response = response.choices[0].message.content
-
-        assistant_response = re.sub(r'(Day \d+:)', r'**\1**', assistant_response)
-        assistant_response = re.sub(r'\*\*Day \d+:\*\*', lambda m: f"{m.group(0)}\n\n", assistant_response)
-        assistant_response = re.sub(r'(Total estimated cost[^\n]*)', r'**\1**', assistant_response)
-        assistant_response = re.sub(r'(Accommodation:|Activities:|Transportation:|Food:|Miscellaneous:|Total estimated cost for the trip:)', r'**\1**', assistant_response)
     except Exception:
         assistant_response = "Sorry, I'm unable to generate your itinerary right now."
 
@@ -376,7 +347,6 @@ if st.session_state.pending_form_response:
     st.session_state.pending_form_response = False
     st.rerun()
 
-# --------- DISPLAY CHAT ---------
 for msg in st.session_state.messages:
     avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
