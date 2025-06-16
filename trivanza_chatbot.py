@@ -75,14 +75,16 @@ def recommend_destinations(user_history, preferences):
         return "Recommendations unavailable."
 
 def post_process_itinerary(text):
+    # Convert [Book: ...] or [Info: ...] to Markdown links [Book](...)
+    text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]\s]+)\]', r'[\1](\2)', text)
+    # Fix any [Book: ...] without a space after colon
+    text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking):\s*(https?://[^\]\s]+)\]', r'[\1](\2)', text)
     # Ensure each bullet and emoji starts on a new line
     text = re.sub(r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•-])', r'\n\1', text)
+    # Ensure Markdown headings start on their own line (## Day N: ...)
+    text = re.sub(r'(?<!\n)(## Day)', r'\n\1', text)
     # Remove excessive newlines
     text = re.sub(r'\n{3,}', r'\n\n', text)
-    # Fix Markdown link formatting if AI outputs [Book: url] or [Book : url]
-    text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]]+)\]', r'[Book](\2)', text)
-    # Ensure only valid markdown links remain
-    text = re.sub(r'\[([^\[\]]+)\]\((https?://[^\)]+)\)', r'[\1](\2)', text)
     return text.strip()
 
 if "messages" not in st.session_state:
@@ -125,14 +127,12 @@ system_content = (
     "You are TRIVANZA Travel Assistant. "
     "For every trip request, ALWAYS reply in the following structure and style:\n"
     "1. Friendly short intro, summarizing trip city, dates, and user interests.\n"
-    "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
+    "2. For each day, use a Markdown heading in this style: ## Day 1: Arrival in Paris\n"
     "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation, local transport), use a SEPARATE line with:\n"
-    "   <emoji> <label>: <details>, ₹<cost> per person [Book: <working https://... link>]\n"
-    "   - Always state 'per person' and multiply for total day cost if group size >1.\n"
-    "   - At end of EACH day, show both per person and total cost if group size >1.\n"
-    "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
-    "   - Every major item must have a real, working booking/info link (not placeholder or broken).\n"
-    "   - Always include local transportation cost for each day if relevant.\n"
+    "   <emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
+    "   - Each itinerary bullet must be on its own line.\n"
+    "   - Every major item MUST have a real, working, direct booking/info link (do NOT use placeholder, do NOT use fake domains).\n"
+    "   - Every day MUST include at least one local transportation item (taxi, metro, bus, etc.) with a real booking/info link and cost, and this must be included in daily and total costs.\n"
     "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
     "5. After all days, show cost breakdown as bullet points, e.g.:\n"
     "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
@@ -203,14 +203,12 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
             user_instructions = (
                 "IMPORTANT:\n"
                 "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
-                "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
+                "2. For each day, use a Markdown heading in this style: ## Day 1: Arrival in " + destination + "\n"
                 "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation, local transport), use a SEPARATE line with:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [Book: <working https://... link>]\n"
-                "   - Always state 'per person' and multiply for total day cost.\n"
-                "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
-                "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
-                "   - Every major item must have a real, working booking/info link (not placeholder or broken).\n"
-                "   - Always include local transportation cost for each day if relevant.\n"
+                "   <emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
+                "   - Each itinerary bullet must be on its own line.\n"
+                "   - Every major item MUST have a real, working, direct booking/info link (do NOT use placeholder, do NOT use fake domains).\n"
+                "   - Every day MUST include at least one local transportation item (taxi, metro, bus, etc.) with a real booking/info link and cost, and this must be included in daily and total costs.\n"
                 "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
                 "5. After all days, show cost breakdown as bullet points, e.g.:\n"
                 "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
@@ -255,7 +253,7 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
             st.session_state.form_submitted = True
             st.rerun()
 
-# ... (rest unchanged) ...
+# ... (rest unchanged except below) ...
 
 travel_keywords = [
     # ... (same as before) ...
@@ -305,14 +303,13 @@ if submitted and user_input:
             user_instructions = (
                 "IMPORTANT:\n"
                 "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
-                "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
+                "2. For each day, use a Markdown heading in this style: ## Day 1: Arrival in " +
+                (st.session_state.trip_context['destination'] if st.session_state.trip_context else "Destination") + "\n"
                 "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation, local transport), use a SEPARATE line with:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [Book: <working https://... link>]\n"
-                "   - Always state 'per person' and multiply for total day cost.\n"
-                "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
-                "   - Every itinerary bullet must be on its own line, never combine activities or costs.\n"
-                "   - Every major item must have a real, working booking/info link (not placeholder or broken).\n"
-                "   - Always include local transportation cost for each day if relevant.\n"
+                "   <emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
+                "   - Each itinerary bullet must be on its own line.\n"
+                "   - Every major item MUST have a real, working, direct booking/info link (do NOT use placeholder, do NOT use fake domains).\n"
+                "   - Every day MUST include at least one local transportation item (taxi, metro, bus, etc.) with a real booking/info link and cost, and this must be included in daily and total costs.\n"
                 "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
                 "5. After all days, show cost breakdown as bullet points, e.g.:\n"
                 "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
