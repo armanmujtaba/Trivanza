@@ -199,6 +199,7 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 }
                 st.session_state.trip_context = trip_context
                 st.session_state.user_history.append(trip_context)
+                st.session_state.just_generated_form_prompt = True  # PATCH: Mark this as a form-generated prompt
                 user_instructions = (
                     "IMPORTANT: Format the itinerary just like this example:\n\n"
                     "Day 1: Arrival in Hanoi\n"
@@ -251,6 +252,11 @@ if submitted and user_input:
     words = re.findall(r'\w+', text_lower)
     is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
 
+    # PATCH: Also treat as travel-related if the message looks like a trip plan
+    form_keywords = ["plan a trip", "itinerary", "hotel", "flight", "travel to", "budget"]
+    if any(kw in user_input.lower() for kw in form_keywords):
+        is_travel_related = True
+
     currency_type = "₹ INR"
     if "trip_context" in st.session_state and st.session_state.trip_context:
         currency_type = st.session_state.trip_context.get("currency_type", "₹ INR")
@@ -276,7 +282,7 @@ if submitted and user_input:
         assistant_response = recognize_destination(image_url)
     elif any(greet in text_lower for greet in greetings) and not is_travel_related:
         assistant_response = greeting_message
-    elif not is_travel_related:
+    elif not is_travel_related and not st.session_state.get("pending_form_response", False):
         assistant_response = fallback_message
     else:
         try:
