@@ -3,7 +3,6 @@ from openai import OpenAI
 import re
 from datetime import date
 import requests
-
 from nltk.stem import PorterStemmer
 
 ps = PorterStemmer()
@@ -129,7 +128,9 @@ system_content = (
     "Always provide intelligent, personalized, budget-aware travel planning assistance. "
     "Give real cost estimates for every element (flight, hotel, food, transport), daily plans, and booking links for key components. "
     "When providing itineraries, break them down by day (Day 1, Day 2, etc.) with Morning/Afternoon/Evening blocks. "
-    "Include the cost per day and total cost. "
+    "Include the cost per day and total cost."
+    "Always format your answer in clean Markdown with proper headings, lists, and tables. "
+    "If currency is not specified, always use Indian Rupees (₹, INR) for all costs."
     "If the user's budget is too low, calculate the true cost of the trip and suggest trade-offs or alternatives."
 )
 
@@ -210,10 +211,19 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 }
                 st.session_state.trip_context = trip_context
                 st.session_state.user_history.append(trip_context)
+                # --- CURRENCY PATCH ---
+                currency_instruction = (
+                    "Please ensure all costs are shown in Indian Rupees (₹, INR)."
+                    if currency_type.startswith("₹") else f"Please show all costs in {currency_type}."
+                )
                 st.session_state.messages.append({
                     "role": "user",
-                    "content": f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
-                               f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}."
+                    "content": (
+                        f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
+                        f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
+                        f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}.\n"
+                        f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables."
+                    )
                 })
                 st.session_state.pending_form_response = True
                 st.session_state.form_submitted = True
@@ -241,14 +251,21 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send")
 
 if submitted and user_input:
-    lang_detect = detect_and_translate(user_input)
     st.session_state.messages.append({"role": "user", "content": user_input})
     text_lower = user_input.lower()
     greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
-
-    # Use regex tokenization for broad compatibility (no nltk punkt needed)
     words = re.findall(r'\w+', text_lower)
     is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
+
+    # Detect currency preference from session or default to INR
+    currency_type = "₹ INR"
+    if "trip_context" in st.session_state and st.session_state.trip_context:
+        currency_type = st.session_state.trip_context.get("currency_type", "₹ INR")
+    currency_instruction = (
+        "Please ensure all costs are shown in Indian Rupees (₹, INR)."
+        if currency_type.startswith("₹")
+        else f"Please show all costs in {currency_type}."
+    )
 
     # Special commands:
     if user_input.lower().startswith("analyze review:"):
@@ -271,13 +288,25 @@ if submitted and user_input:
         assistant_response = fallback_message
     else:
         try:
+            # Add extra prompt to instruct formatting and INR usage
+            messages = [{"role": "system", "content": system_content}] + st.session_state.messages
+            messages.append({
+                "role": "user",
+                "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables."
+            })
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
-                messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
+                messages=messages,
                 temperature=0.7,
                 max_tokens=1200
             )
             assistant_response = response.choices[0].message.content
+
+            # Formatting tidy-up (ensure blank lines between days, headings bold)
+            assistant_response = re.sub(r'(Day \d+:)', r'**\1**', assistant_response)
+            assistant_response = re.sub(r'\*\*Day \d+:\*\*', lambda m: f"{m.group(0)}\n\n", assistant_response)
+            assistant_response = re.sub(r'(Total estimated cost[^\n]*)', r'**\1**', assistant_response)
+            assistant_response = re.sub(r'(Accommodation:|Activities:|Transportation:|Food:|Miscellaneous:|Total estimated cost for the trip:)', r'**\1**', assistant_response)
         except Exception:
             assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
 
@@ -287,13 +316,30 @@ if submitted and user_input:
 # --------- PROCESS FORM-GENERATED MESSAGE ---------
 if st.session_state.pending_form_response:
     try:
+        # Add formatting and INR/currency prompt for form-based itinerary
+        currency_type = st.session_state.trip_context.get("currency_type", "₹ INR") if st.session_state.trip_context else "₹ INR"
+        currency_instruction = (
+            "Please ensure all costs are shown in Indian Rupees (₹, INR)."
+            if currency_type.startswith("₹")
+            else f"Please show all costs in {currency_type}."
+        )
+        messages = [{"role": "system", "content": system_content}] + st.session_state.messages
+        messages.append({
+            "role": "user",
+            "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables."
+        })
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": system_content}] + st.session_state.messages,
+            messages=messages,
             temperature=0.7,
             max_tokens=1200
         )
         assistant_response = response.choices[0].message.content
+
+        assistant_response = re.sub(r'(Day \d+:)', r'**\1**', assistant_response)
+        assistant_response = re.sub(r'\*\*Day \d+:\*\*', lambda m: f"{m.group(0)}\n\n", assistant_response)
+        assistant_response = re.sub(r'(Total estimated cost[^\n]*)', r'**\1**', assistant_response)
+        assistant_response = re.sub(r'(Accommodation:|Activities:|Transportation:|Food:|Miscellaneous:|Total estimated cost for the trip:)', r'**\1**', assistant_response)
     except Exception:
         assistant_response = "Sorry, I'm unable to generate your itinerary right now."
 
