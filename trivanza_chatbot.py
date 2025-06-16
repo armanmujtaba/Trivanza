@@ -293,19 +293,19 @@ if user_input:
         assistant_response = fallback_message
     else:
         try:
-            currency_type = "₹ INR"
-            if "trip_context" in st.session_state and st.session_state.trip_context:
-                currency_type = st.session_state.trip_context.get("currency_type", "₹ INR")
+            # Only add real user input, do not send formatting/currency instructions as a user message
+            messages = st.session_state.messages.copy()
+            # Insert detailed instructions as a system prompt
+            trip_ctx = st.session_state.trip_context or {}
+            destination = trip_ctx.get("destination", "Destination")
+            from_date = trip_ctx.get("from_date", date.today())
+            month = from_date.strftime('%B')
+            currency_type = trip_ctx.get("currency_type", "₹ INR")
             currency_instruction = (
                 "Please ensure all costs are shown in Indian Rupees (₹, INR)."
                 if currency_type.startswith("₹")
                 else f"Please show all costs in {currency_type}."
             )
-            trip_ctx = st.session_state.trip_context or {}
-            destination = trip_ctx.get("destination", "Destination")
-            from_date = trip_ctx.get("from_date", date.today())
-            month = from_date.strftime('%B')
-
             user_instructions = (
                 "IMPORTANT:\n"
                 "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
@@ -323,13 +323,13 @@ if user_input:
                 "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
                 "After all days, show cost breakdown as bullet points. "
                 f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
-                "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line."
+                "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line.\n"
+                f"{currency_instruction}\nFormat your answer in Markdown."
             )
-            messages = st.session_state.messages.copy()
             messages.insert(0, {"role": "system", "content": user_instructions})
             messages.append({
                 "role": "user",
-                "content": f"{currency_instruction}\nFormat your answer in Markdown."
+                "content": user_input
             })
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -351,6 +351,12 @@ if st.session_state.pending_form_response:
         destination = ctx.get("destination", "Destination")
         from_date = ctx.get("from_date", date.today())
         month = from_date.strftime('%B')
+        currency_type = ctx.get("currency_type", "₹ INR")
+        currency_instruction = (
+            "Please ensure all costs are shown in Indian Rupees (₹, INR)."
+            if currency_type.startswith("₹")
+            else f"Please show all costs in {currency_type}."
+        )
         user_instructions = (
             "IMPORTANT:\n"
             "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
@@ -368,7 +374,8 @@ if st.session_state.pending_form_response:
             "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
             "After all days, show cost breakdown as bullet points. "
             f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
-            "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line."
+            "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line.\n"
+            f"{currency_instruction}\nFormat your answer in Markdown."
         )
         messages = st.session_state.messages.copy()
         messages.insert(0, {"role": "system", "content": user_instructions})
