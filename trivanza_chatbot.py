@@ -78,8 +78,26 @@ def post_process_itinerary(text):
     # Convert [Book: ...] or [Info: ...] to Markdown links [Book](...)
     text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]\s]+)\]', r'[\1](\2)', text)
     # Ensure each bullet, emoji, or heading starts on a new line
-    text = re.sub(r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•-])', r'\n\1', text)
+    text = re.sub(
+        r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•\-])',
+        r'\n\1', text
+    )
+    # Ensure Markdown headings start on their own line (## Day N: ...)
     text = re.sub(r'(?<!\n)(## Day)', r'\n\1', text)
+    # Ensure each itinerary item is on its own line (extra safety: split on . or ; if multiple items in one line)
+    fixed_lines = []
+    for line in text.split('\n'):
+        # If line contains multiple emojis, split further
+        splits = re.split(r'(?=(✈️|🏨|🍽️|🍜|🍹|🚌|🚕|🚶‍♀️|🛍️|🎯|🎉|🎭|🕌|🍴|🍣|🏖️|🚗|🚖|🚶‍♂️|🚴‍♂️|🌆))', line)
+        splits = [s for s in splits if s]  # remove empty
+        if len(splits) > 1:
+            for s in splits:
+                if s.strip():
+                    fixed_lines.append(s.strip())
+        else:
+            fixed_lines.append(line.strip())
+    text = '\n'.join(fixed_lines)
+    # Remove excessive newlines
     text = re.sub(r'\n{3,}', r'\n\n', text)
     return text.strip()
 
@@ -118,31 +136,6 @@ st.markdown("""
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
 </div>
 """, unsafe_allow_html=True)
-
-system_content = (
-    "You are TRIVANZA Travel Assistant. "
-    "For every trip request, ALWAYS reply in the following structure and style:\n"
-    "1. Friendly short intro, summarizing trip city, dates, and user interests.\n"
-    "2. For each day, use a Markdown heading in this style: ## Day 1: Arrival in {destination} (YYYY-MM-DD), with the actual date for that day.\n"
-    "3. EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
-    "   <emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
-    "   - For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
-    "   - For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
-    "   - For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
-    "   - Every major item MUST have a real, working, direct booking/info link (no placeholders, no fake domains).\n"
-    "   - Every day MUST include at least one local transportation item (taxi, metro, bus, etc.) with a real booking/info link and cost, and this must be included in daily and total costs.\n"
-    "   - The return flight MUST appear on the last day, with booking link and cost, and MUST be included in the day and total costs.\n"
-    "   - For accommodation, food, and activities, choose and explicitly mention the best options possible within the user’s budget (e.g., ‘Best 3-star hotel for your budget’, ‘affordable local restaurant’, or ‘must-see free/low-cost attraction’). If budget is tight, suggest a lower-cost alternative and explain briefly.\n"
-    "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line. This total must include ALL costs for that day, including flights (depart and return), accommodation, meals, local transport, activities, etc.\n"
-    "5. After all days, show cost breakdown as bullet points, e.g.:\n"
-    "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
-    "   - ...\n"
-    "   - Total: ₹27,500 per person / ₹55,000 for couple\n"
-    "6. Add a Packing Checklist for {destination} in {month} (based on weather & activities).\n"
-    "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
-    "8. Add a friendly {destination} Pro Tip at the end.\n"
-    "9. Output must be in Markdown, with each heading, bullet, and cost on its own line. Do NOT combine lines. Do NOT summarize days. Do NOT skip any section above."
-)
 
 greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
 I'm excited to help you with your travel plans.
@@ -195,30 +188,25 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
             dates = [(from_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days)]
             month = from_date.strftime("%B")
 
-            # Prompt with full, enforced instructions
             user_instructions = (
                 "IMPORTANT:\n"
-                "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
-                "2. For each day, use a Markdown heading in this style: ## Day 1: Arrival in {destination} (YYYY-MM-DD), with the actual date for that day.\n"
-                "3. EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
-                "   - For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
-                "   - For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
-                "   - For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
-                "   - Every major item MUST have a real, working, direct booking/info link (no placeholders, no fake domains).\n"
-                "   - Every day MUST include at least one local transportation item (taxi, metro, bus, etc.) with a real booking/info link and cost, and this must be included in daily and total costs.\n"
-                "   - The return flight MUST appear on the last day, with booking link and cost, and MUST be included in the day and total costs.\n"
-                "   - For accommodation, food, and activities, choose and explicitly mention the best options possible within the user’s budget (e.g., ‘Best 3-star hotel for your budget’, ‘affordable local restaurant’, or ‘must-see free/low-cost attraction’). If budget is tight, suggest a lower-cost alternative and explain briefly.\n"
-                "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line. This total must include ALL costs for that day, including flights (depart and return), accommodation, meals, local transport, activities, etc.\n"
-                "5. After all days, show cost breakdown as bullet points, e.g.:\n"
-                "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
-                "   - ...\n"
-                "   - Total: ₹27,500 per person / ₹55,000 for couple\n"
-                f"6. Add a Packing Checklist for {destination} in {month} (based on weather & activities).\n"
-                "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
-                f"8. Add a friendly {destination} Pro Tip at the end.\n"
-                "9. Output must be in Markdown, with each heading, bullet, and cost on its own line. Do NOT combine lines. Do NOT summarize days. Do NOT skip any section above."
-            ).format(destination=destination, month=month)
+                "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
+                "Use the correct day number and real date for each day. "
+                "EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
+                "<emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
+                "- For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
+                "- For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
+                "- For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
+                "- Every major item MUST have a real, working, direct booking/info link.\n"
+                "- Every day MUST include at least one local transportation item with booking/info link and cost, and be included in daily and total costs.\n"
+                "- The return flight MUST appear on the last day, with booking link and cost, and be included in the day and total costs.\n"
+                "- For accommodation, food, and activities, choose and explicitly mention the best options within the user’s budget. If budget is tight, suggest a lower-cost alternative and explain.\n"
+                "Daily total must be the sum of ALL items for that day, including all flights, hotels, food, transport, and activities. "
+                "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
+                "After all days, show cost breakdown as bullet points. "
+                f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
+                "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line."
+            )
 
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
@@ -289,7 +277,6 @@ if submitted and user_input:
         else f"Please show all costs in {currency_type}."
     )
 
-    # Use form's destination and from_date for dynamic prompt
     trip_ctx = st.session_state.trip_context or {}
     destination = trip_ctx.get("destination", "Destination")
     from_date = trip_ctx.get("from_date", date.today())
@@ -317,31 +304,28 @@ if submitted and user_input:
         try:
             user_instructions = (
                 "IMPORTANT:\n"
-                "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
-                "2. For each day, use a Markdown heading in this style: ## Day 1: Arrival in {destination} (YYYY-MM-DD), with the actual date for that day.\n"
-                "3. EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
-                "   <emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
-                "   - For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
-                "   - For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
-                "   - For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
-                "   - Every major item MUST have a real, working, direct booking/info link (no placeholders, no fake domains).\n"
-                "   - Every day MUST include at least one local transportation item (taxi, metro, bus, etc.) with a real booking/info link and cost, and this must be included in daily and total costs.\n"
-                "   - The return flight MUST appear on the last day, with booking link and cost, and MUST be included in the day and total costs.\n"
-                "   - For accommodation, food, and activities, choose and explicitly mention the best options possible within the user’s budget (e.g., ‘Best 3-star hotel for your budget’, ‘affordable local restaurant’, or ‘must-see free/low-cost attraction’). If budget is tight, suggest a lower-cost alternative and explain briefly.\n"
-                "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line. This total must include ALL costs for that day, including flights (depart and return), accommodation, meals, local transport, activities, etc.\n"
-                "5. After all days, show cost breakdown as bullet points, e.g.:\n"
-                "   - Day 1: ₹10,000 per person / ₹20,000 for couple\n"
-                "   - ...\n"
-                "   - Total: ₹27,500 per person / ₹55,000 for couple\n"
-                f"6. Add a Packing Checklist for {destination} in {month} (based on weather & activities).\n"
-                "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
-                f"8. Add a friendly {destination} Pro Tip at the end.\n"
-                "9. Output must be in Markdown, with each heading, bullet, and cost on its own line. Do NOT combine lines. Do NOT summarize days. Do NOT skip any section above."
-            ).format(destination=destination, month=month)
-            messages = [{"role": "system", "content": system_content.format(destination=destination, month=month)}] + st.session_state.messages
+                "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
+                "Use the correct day number and real date for each day. "
+                "EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
+                "<emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
+                "- For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
+                "- For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
+                "- For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
+                "- Every major item MUST have a real, working, direct booking/info link.\n"
+                "- Every day MUST include at least one local transportation item with booking/info link and cost, and be included in daily and total costs.\n"
+                "- The return flight MUST appear on the last day, with booking link and cost, and be included in the day and total costs.\n"
+                "- For accommodation, food, and activities, choose and explicitly mention the best options within the user’s budget. If budget is tight, suggest a lower-cost alternative and explain.\n"
+                "Daily total must be the sum of ALL items for that day, including all flights, hotels, food, transport, and activities. "
+                "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
+                "After all days, show cost breakdown as bullet points. "
+                f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
+                "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line."
+            )
+            messages = st.session_state.messages.copy()
+            messages.insert(0, {"role": "system", "content": user_instructions})
             messages.append({
                 "role": "user",
-                "content": f"{currency_instruction}\nFormat your answer in Markdown.\n\n{user_instructions}"
+                "content": f"{currency_instruction}\nFormat your answer in Markdown."
             })
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -363,8 +347,27 @@ if st.session_state.pending_form_response:
         destination = ctx.get("destination", "Destination")
         from_date = ctx.get("from_date", date.today())
         month = from_date.strftime('%B')
-
-        messages = [{"role": "system", "content": system_content.format(destination=destination, month=month)}] + st.session_state.messages
+        user_instructions = (
+            "IMPORTANT:\n"
+            "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
+            "Use the correct day number and real date for each day. "
+            "EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
+            "<emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
+            "- For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
+            "- For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
+            "- For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
+            "- Every major item MUST have a real, working, direct booking/info link.\n"
+            "- Every day MUST include at least one local transportation item with booking/info link and cost, and be included in daily and total costs.\n"
+            "- The return flight MUST appear on the last day, with booking link and cost, and be included in the day and total costs.\n"
+            "- For accommodation, food, and activities, choose and explicitly mention the best options within the user’s budget. If budget is tight, suggest a lower-cost alternative and explain.\n"
+            "Daily total must be the sum of ALL items for that day, including all flights, hotels, food, transport, and activities. "
+            "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
+            "After all days, show cost breakdown as bullet points. "
+            f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
+            "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line."
+        )
+        messages = st.session_state.messages.copy()
+        messages.insert(0, {"role": "system", "content": user_instructions})
         messages.append({
             "role": "user",
             "content": st.session_state["pending_llm_prompt"]
