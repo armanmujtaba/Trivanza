@@ -4,26 +4,89 @@ import re
 from datetime import date
 import requests
 
+import nltk
+from nltk.stem import PorterStemmer
+
+# Ensure NLTK punkt is downloaded (run once per environment)
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+
+ps = PorterStemmer()
+
 # --------- CONFIG ---------
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
 
-# --------- WEATHER HELPERS ---------
-OPENWEATHER_API_KEY = "c7410425e996d5fa16ed7f3c2835a73c"
-def get_weather(city):
-    url = f"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric"
+# --------- SENTIMENT ANALYSIS HELPER ---------
+def analyze_sentiment(text):
     try:
-        response = requests.get(url)
-        data = response.json()
-        if data.get("cod") != 200:
-            return None
-        weather = data["weather"][0]["description"].capitalize()
-        temp = data["main"]["temp"]
-        humidity = data["main"]["humidity"]
-        wind_speed = data["wind"]["speed"]
-        return f"Current weather in {city.title()}: {weather}, {temp}°C, Humidity: {humidity}%, Wind Speed: {wind_speed} m/s"
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a sentiment analysis tool. Classify this review as Positive, Neutral, or Negative and explain why."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.0,
+            max_tokens=100
+        )
+        return response.choices[0].message.content
     except Exception:
-        return None
+        return "Sentiment analysis unavailable."
+
+# --------- LANGUAGE DETECTION & TRANSLATION HELPER ---------
+def detect_and_translate(text, target_language="English"):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Detect the language of the user's input. If it is not English, translate it to English. Reply as: Detected: <Language>. Translation: <English translation>."},
+                {"role": "user", "content": text}
+            ],
+            temperature=0.0,
+            max_tokens=120
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Language detection unavailable."
+
+# --------- IMAGE RECOGNITION HELPER (Stub for destination matching) ---------
+def recognize_destination(image_url):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo-vision-preview",
+            messages=[
+                {"role": "system", "content": "Given a travel photo, try to identify the destination or suggest similar travel destinations. Respond as: 'This looks like <destination> or similar to <alternatives>'."},
+                {"role": "user", "content": f"<image>{image_url}</image>"}
+            ],
+            temperature=0.0,
+            max_tokens=150
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Image recognition unavailable."
+
+# --------- RECOMMENDATION ENGINE HELPER (Stub) ---------
+def recommend_destinations(user_history, preferences):
+    try:
+        prompt = (
+            "Given the user's travel history and preferences, recommend 3 destinations with reasons. "
+            "User history: " + str(user_history) +
+            "\nPreferences: " + str(preferences)
+        )
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a travel recommendation engine. Suggest 3 destinations and explain why."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=200
+        )
+        return response.choices[0].message.content
+    except Exception:
+        return "Recommendations unavailable."
 
 # --------- SESSION INIT ---------
 if "messages" not in st.session_state:
@@ -34,6 +97,8 @@ if "trip_context" not in st.session_state:
     st.session_state.trip_context = None
 if "pending_form_response" not in st.session_state:
     st.session_state.pending_form_response = False
+if "user_history" not in st.session_state:
+    st.session_state.user_history = []
 
 # --------- CUSTOM HEADER ---------
 st.markdown("""
@@ -63,7 +128,7 @@ st.markdown("""
 system_content = (
     "You are TRIVANZA Travel Assistant. Only answer travel-related questions within the following topics: "
     "travel problem-solving (cancellations, theft, health issues), personalized itineraries (day-by-day, by budget, by interests, events), "
-    "real-time alerts (weather, political unrest, flight delays), smart packing (checklists by weather & activity), "
+    "real-time alerts (political unrest, flight delays), smart packing (checklists by weather & activity), "
     "culture & language (local etiquette, translations), health & insurance (local medical help, insurance), "
     "sustainable travel (eco-friendly stays, eco-transport), live translation (signs, speech, receipts), "
     "budget & currency planning, and expense categories (flight, hotel, food, transport). "
@@ -134,7 +199,7 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 st.error("❌ Budget must be greater than 0")
             else:
                 st.success("✅ Generating your personalized itinerary...")
-                st.session_state.trip_context = {
+                trip_context = {
                     "origin": origin.strip(),
                     "destination": destination.strip(),
                     "from_date": from_date,
@@ -150,13 +215,32 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                     "currency_type": currency_type,
                     "stay": stay
                 }
+                st.session_state.trip_context = trip_context
+                st.session_state.user_history.append(trip_context)
                 st.session_state.messages.append({
                     "role": "user",
-                    "content": f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. Stay: {stay}. Interests: {', '.join(custom_activities)}. Language: {language_pref}. Sustainability: {sustainability}."
+                    "content": f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
+                               f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}."
                 })
                 st.session_state.pending_form_response = True
                 st.session_state.form_submitted = True
                 st.rerun()
+
+# ------- KEYWORD MATCHING CONFIG --------
+travel_keywords = [
+    "travel", "travelling", "trip", "vacation", "explore", "journey", "tour", "destination", "destinations",
+    "summer", "india", "holiday", "beach", "mountain", "adventure", "hotel", "flight", "sightseeing", "tourist",
+    "places", "itinerary", "plan", "attraction", "resort", "city", "backpacking", "road", "solo", "family", "budget",
+    "luxury", "eco", "sustainable", "nomad", "staycation", "getaway", "island", "unesco", "local", "cultural",
+    "trekking", "safari", "group", "hostel", "accommodation", "booking", "transport", "bus", "train", "car", "visa",
+    "passport", "insurance", "luggage", "packing", "currency", "cost", "expenses", "food", "cuisine", "restaurant",
+    "restaurants", "street", "dining", "festival", "nightlife", "shopping", "souvenir", "photography", "wellness",
+    "retreat", "spa", "guide", "cruise", "winter", "spring", "autumn", "monsoon", "hiking", "trek", "camping",
+    "surfing", "snorkeling", "scuba", "skiing", "kayaking", "cycling", "yoga", "meditation", "spiritual", "pilgrimage",
+    "heritage", "museum", "landmark", "nature", "wildlife", "park", "sports", "volunteer", "medical", "conference",
+    "business", "honeymoon", "offbeat", "hidden", "gem"
+]
+stemmed_keywords = set(ps.stem(k) for k in travel_keywords)
 
 # --------- CHAT MODULE ---------
 with st.form("chat_form", clear_on_submit=True):
@@ -164,20 +248,39 @@ with st.form("chat_form", clear_on_submit=True):
     submitted = st.form_submit_button("Send")
 
 if submitted and user_input:
+    lang_detect = detect_and_translate(user_input)
     st.session_state.messages.append({"role": "user", "content": user_input})
     text_lower = user_input.lower()
     greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
-    travel_keywords = ["trip", "flight", "itinerary", "weather", "hotel", "visa", "insurance", "food", "culture", "currency", "booking", "transport", "tour", "packing", "theft", "delay", "sightseeing"]
 
-    # WEATHER DETECTION
-    weather_match = re.search(r"(?:weather|forecast)\s*(?:in)?\s*(\w+(?:\s\w+)*)", text_lower)
-    if weather_match:
-        city = weather_match.group(1).strip()
-        weather_info = get_weather(city)
-        assistant_response = weather_info or f"❌ Could not find weather info for {city}."
-    elif any(greet in text_lower for greet in greetings) and not any(k in text_lower for k in travel_keywords):
+    # Use nltk's word_tokenize for better splitting
+    words = nltk.word_tokenize(text_lower)
+    is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
+
+    # Debugging print statements (uncomment for troubleshooting)
+    # print("Tokenized words:", words)
+    # print("Stemmed words:", [ps.stem(word) for word in words])
+    # print("Stemmed keywords:", stemmed_keywords)
+    # print("is_travel_related:", is_travel_related)
+
+    # Special commands:
+    if user_input.lower().startswith("analyze review:"):
+        review = user_input.split(":", 1)[1]
+        sentiment = analyze_sentiment(review)
+        assistant_response = f"Sentiment Analysis: {sentiment}"
+    elif user_input.lower().startswith("recommend destinations"):
+        preferences = user_input.split(":", 1)[1] if ":" in user_input else ""
+        recommendations = recommend_destinations(st.session_state.user_history, preferences)
+        assistant_response = f"Recommended Destinations:\n{recommendations}"
+    elif user_input.lower().startswith("detect language:"):
+        phrase = user_input.split(":", 1)[1]
+        assistant_response = detect_and_translate(phrase)
+    elif user_input.lower().startswith("analyze image:"):
+        image_url = user_input.split(":", 1)[1].strip()
+        assistant_response = recognize_destination(image_url)
+    elif any(greet in text_lower for greet in greetings) and not is_travel_related:
         assistant_response = greeting_message
-    elif not any(k in text_lower for k in travel_keywords):
+    elif not is_travel_related:
         assistant_response = fallback_message
     else:
         try:
