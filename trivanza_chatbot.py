@@ -3,16 +3,14 @@ from openai import OpenAI
 from datetime import date, timedelta
 
 # ----------------- CONFIG -----------------
-st.set_page_config(page_title="TRIVANZA – Your Smart Travel Buddy", layout="centered")
+st.set_page_config(page_title="TRIVANZA – Your Smart Travel Companion", layout="centered")
 client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
 
 # ----------------- CUSTOM HEADER -----------------
 st.markdown("""
 <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-    <img src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png"  width="45px">
-    <h2 style="margin: 0;">TRIVANZA – Your Smart Travel Buddy</h2>
-</div>
-""", unsafe_allow_html=True)
+    <img src="https://github.com/armanmujtaba/Trivanza/blob/main/Trivanza.png"  width="45px">
+    """, unsafe_allow_html=True)
 
 # ----------------- SESSION STATE INIT -----------------
 if "messages" not in st.session_state:
@@ -41,10 +39,10 @@ def generate_itinerary(trip_data):
         current_date += timedelta(days=1)
 
     # Construct detailed prompt
-    prompt = f"""You are TRIVANZA, a professional travel planner with expertise in logistics.
+    prompt = f"""You are TRIVANZA, a professional travel planner with expertise in logistics and ITINERARY planning.
 MANDATORY REQUIREMENTS:
 1. CREATE A COMPLETE {duration}-DAY ITINERARY INCLUDING:
-   - Flight schedules with realistic times (evening departures from India)
+   - Flight schedules with realistic times (departures from {destination})
    - Airport transfers (1.5 hours minimum)
    - Time zone adjustments (calculate arrival times precisely)
    - Hotel check-in/out times (12 PM standard)
@@ -57,7 +55,7 @@ MANDATORY REQUIREMENTS:
 3. FINAL DAY MUST INCLUDE:
    - Airport departure logistics (3-hour check-in requirement)
    - Last-minute activities near airport
-   - Return transfer timing to Delhi
+   - Return transfer timing to Origin
 
 TRIP DETAILS:
 - Origin: {trip_data['origin']}
