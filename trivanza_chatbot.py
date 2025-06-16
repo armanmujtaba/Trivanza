@@ -189,78 +189,72 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
         submit = st.form_submit_button("🚀 Generate Itinerary")
 
         if submit:
-            if not origin.strip():
-                st.error("❌ Enter your origin city!")
-            elif not destination.strip():
-                st.error("❌ Enter your destination!")
-            elif to_date < from_date:
-                st.error("❌ End date must be after start date!")
-            elif budget_amount <= 0:
-                st.error("❌ Budget must be greater than 0")
-            else:
-                st.success("✅ Generating your personalized itinerary...")
+            # Use local form variables for prompt construction!
+            st.success("✅ Generating your personalized itinerary...")
 
-                # --- Build user-friendly prompt for chat display ---
-                short_prompt = (
-                    f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
-                    f"Budget: {currency_type} {budget_amount}. "
-                    f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
-                    f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}. "
-                    f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
-                )
-                # --- Strong, uniform instructions for LLM ---
-                user_instructions = (
-                    "IMPORTANT:\n"
-                    "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
-                    "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
-                    "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
-                    "   <emoji> <label>: <details>, ₹<cost> per person [<Link/Info>]\n"
-                    "   - Always state 'per person' and multiply for total day cost.\n"
-                    "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
-                    "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
-                    "5. After all days, show a clear, bold cost breakdown table:\n"
-                    "   - Table columns: Day, Per Person, Group\n"
-                    "   - Row: Total\n"
-                    "6. Add a Packing Checklist for " + destination + f" in {from_date.strftime('%B')} (based on weather & activities).\n"
-                    "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
-                    "8. Add a friendly " + destination + " Pro Tip at the end.\n"
-                    "9. Output must be in Markdown, with each heading, bullet, and cost on its own line. Do NOT combine lines. Do NOT summarize days. Do NOT skip any section above."
-                )
-                full_prompt = (
-                    short_prompt +
-                    "\nFormat your answer in Markdown.\n\n" +
-                    user_instructions
-                )
+            # --- Build user-friendly prompt for chat display ---
+            short_prompt = (
+                f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
+                f"Budget: {currency_type} {budget_amount}. "
+                f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
+                f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}. "
+                f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
+            )
+            # --- Strong, uniform instructions for LLM ---
+            user_instructions = (
+                "IMPORTANT:\n"
+                "1. Begin with a friendly, short intro (one line), summarizing trip city, dates, and user interests.\n"
+                "2. For each day, use a heading (e.g., 'Day 1: Arrival in Paris').\n"
+                "3. For EVERY itinerary item (flight, transfer, hotel, meal, activity, transportation), use a SEPARATE line with:\n"
+                "   <emoji> <label>: <details>, ₹<cost> per person [<Link/Info>]\n"
+                "   - Always state 'per person' and multiply for total day cost.\n"
+                "   - If group size >1, at end of EACH day, show both per person and total costs.\n"
+                "4. End every day with 🎯 Daily Total: ₹<per person>/<total for all> on its own line.\n"
+                "5. After all days, show a clear, bold cost breakdown table:\n"
+                "   - Table columns: Day, Per Person, Group\n"
+                "   - Row: Total\n"
+                f"6. Add a Packing Checklist for {destination} in {from_date.strftime('%B')} (based on weather & activities).\n"
+                "7. Add Budget Analysis: Is the budget low/medium/high for this trip? Suggest how to adjust if needed.\n"
+                f"8. Add a friendly {destination} Pro Tip at the end.\n"
+                "9. Output must be in Markdown, with each heading, bullet, and cost on its own line. Do NOT combine lines. Do NOT summarize days. Do NOT skip any section above."
+            )
+            full_prompt = (
+                short_prompt +
+                "\nFormat your answer in Markdown.\n\n" +
+                user_instructions
+            )
 
-                # Store only the short, human-friendly prompt as the user message
-                st.session_state.messages.append({
-                    "role": "user",
-                    "content": short_prompt
-                })
-                # Store the full LLM prompt for the next LLM call
-                st.session_state["pending_llm_prompt"] = full_prompt
+            # Store only the short, human-friendly prompt as the user message
+            st.session_state.messages.append({
+                "role": "user",
+                "content": short_prompt
+            })
+            # Store the full LLM prompt for the next LLM call
+            st.session_state["pending_llm_prompt"] = full_prompt
 
-                trip_context = {
-                    "origin": origin.strip(),
-                    "destination": destination.strip(),
-                    "from_date": from_date,
-                    "to_date": to_date,
-                    "traveler_type": traveler_type,
-                    "group_size": group_size,
-                    "dietary_pref": dietary_pref,
-                    "language_pref": language_pref,
-                    "sustainability": sustainability,
-                    "cultural_pref": cultural_pref,
-                    "custom_activities": custom_activities,
-                    "budget_amount": budget_amount,
-                    "currency_type": currency_type,
-                    "stay": stay
-                }
-                st.session_state.trip_context = trip_context
-                st.session_state.user_history.append(trip_context)
-                st.session_state.pending_form_response = True
-                st.session_state.form_submitted = True
-                st.rerun()
+            trip_context = {
+                "origin": origin.strip(),
+                "destination": destination.strip(),
+                "from_date": from_date,
+                "to_date": to_date,
+                "traveler_type": traveler_type,
+                "group_size": group_size,
+                "dietary_pref": dietary_pref,
+                "language_pref": language_pref,
+                "sustainability": sustainability,
+                "cultural_pref": cultural_pref,
+                "custom_activities": custom_activities,
+                "budget_amount": budget_amount,
+                "currency_type": currency_type,
+                "stay": stay
+            }
+            st.session_state.trip_context = trip_context
+            st.session_state.user_history.append(trip_context)
+            st.session_state.pending_form_response = True
+            st.session_state.form_submitted = True
+            st.rerun()
+
+# ... (rest of the code unchanged, including chat logic and LLM call) ...
 
 travel_keywords = [
     "travel", "travelling", "trip", "vacation", "explore", "journey", "tour", "destination", "destinations",
