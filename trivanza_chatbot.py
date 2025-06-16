@@ -125,13 +125,14 @@ system_content = (
     "sustainable travel (eco-friendly stays, eco-transport), live translation (signs, speech, receipts), "
     "budget & currency planning, and expense categories (flight, hotel, food, transport). "
     "If the user asks anything outside these topics, reply with: \"This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions.\"\n"
-    "Always provide intelligent, personalized, budget-aware travel planning assistance. "
-    "Give real cost estimates for every element (flight, hotel, food, transport), daily plans, and booking links for key components. "
-    "When providing itineraries, break them down by day (Day 1, Day 2, etc.) with Morning/Afternoon/Evening blocks. "
-    "Include the cost per day and total cost."
-    "Always format your answer in clean Markdown with proper headings, lists, and tables. "
-    "If currency is not specified, always use Indian Rupees (₹, INR) for all costs."
-    "If the user's budget is too low, calculate the true cost of the trip and suggest trade-offs or alternatives."
+    "When planning a trip, you must:\n"
+    "- Provide a **detailed, day-by-day itinerary**. Each day must be a separate heading, with morning/afternoon/evening activities.\n"
+    "- For each day, recommend **specific flights, hotels (with eco-friendly options if requested), restaurants (with dietary preference), and places to visit**. Always include at least one booking link for each (use real or plausible booking URLs).\n"
+    "- Give a packing checklist based on the weather at the destination during the trip.\n"
+    "- Show a section with the **trip budget analysis**: Is the budget low, medium, or high for these preferences? Clearly state which costs are driving the total and if the budget is realistic.\n"
+    "- All costs must be shown in Indian Rupees (₹, INR).\n"
+    "- Use Markdown formatting: headings, bullet lists, and cost tables for clarity.\n"
+    "- If the user's budget is too low, calculate the actual cost and suggest cost-saving alternatives."
 )
 
 greeting_message = """Welcome to Trivanza: Your Smart Travel Companion  
@@ -211,19 +212,27 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
                 }
                 st.session_state.trip_context = trip_context
                 st.session_state.user_history.append(trip_context)
-                # --- CURRENCY PATCH ---
-                currency_instruction = (
-                    "Please ensure all costs are shown in Indian Rupees (₹, INR)."
-                    if currency_type.startswith("₹") else f"Please show all costs in {currency_type}."
+                # --- PATCHED INSTRUCTIONS ---
+                extra_instructions = (
+                    "Be sure to do ALL of the following:\n"
+                    "- Recommend specific flight options with booking links.\n"
+                    "- Recommend specific eco-friendly hotels in the destination with booking links.\n"
+                    "- Recommend restaurants and foodie experiences with booking links, honoring dietary preferences.\n"
+                    "- For each day, list at least one place or activity with a booking link.\n"
+                    "- Provide a packing checklist for the destination and dates.\n"
+                    "- At the end, include a table summarizing the total costs for flights, hotel, food, activities, and miscellaneous.\n"
+                    "- Analyze whether the user's entered budget is low, medium, or high for this trip and explain why."
+                )
+                prompt = (
+                    f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
+                    f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
+                    f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}.\n"
+                    "Please ensure all costs are shown in Indian Rupees (₹, INR). Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n"
+                    f"{extra_instructions}"
                 )
                 st.session_state.messages.append({
                     "role": "user",
-                    "content": (
-                        f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Budget: {currency_type} {budget_amount}. "
-                        f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
-                        f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}.\n"
-                        f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables."
-                    )
+                    "content": prompt
                 })
                 st.session_state.pending_form_response = True
                 st.session_state.form_submitted = True
@@ -288,17 +297,27 @@ if submitted and user_input:
         assistant_response = fallback_message
     else:
         try:
-            # Add extra prompt to instruct formatting and INR usage
+            # Add extra prompt to instruct formatting and INR usage and feature requirements
+            extra_instructions = (
+                "Be sure to do ALL of the following:\n"
+                "- Recommend specific flight options with booking links.\n"
+                "- Recommend specific eco-friendly hotels in the destination with booking links.\n"
+                "- Recommend restaurants and foodie experiences with booking links, honoring dietary preferences.\n"
+                "- For each day, list at least one place or activity with a booking link.\n"
+                "- Provide a packing checklist for the destination and dates.\n"
+                "- At the end, include a table summarizing the total costs for flights, hotel, food, activities, and miscellaneous.\n"
+                "- Analyze whether the user's entered budget is low, medium, or high for this trip and explain why."
+            )
             messages = [{"role": "system", "content": system_content}] + st.session_state.messages
             messages.append({
                 "role": "user",
-                "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables."
+                "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n{extra_instructions}"
             })
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
                 temperature=0.7,
-                max_tokens=1200
+                max_tokens=1800
             )
             assistant_response = response.choices[0].message.content
 
@@ -316,23 +335,33 @@ if submitted and user_input:
 # --------- PROCESS FORM-GENERATED MESSAGE ---------
 if st.session_state.pending_form_response:
     try:
-        # Add formatting and INR/currency prompt for form-based itinerary
+        # Add formatting and INR/currency prompt and feature requirements for form-based itinerary
         currency_type = st.session_state.trip_context.get("currency_type", "₹ INR") if st.session_state.trip_context else "₹ INR"
         currency_instruction = (
             "Please ensure all costs are shown in Indian Rupees (₹, INR)."
             if currency_type.startswith("₹")
             else f"Please show all costs in {currency_type}."
         )
+        extra_instructions = (
+            "Be sure to do ALL of the following:\n"
+            "- Recommend specific flight options with booking links.\n"
+            "- Recommend specific eco-friendly hotels in the destination with booking links.\n"
+            "- Recommend restaurants and foodie experiences with booking links, honoring dietary preferences.\n"
+            "- For each day, list at least one place or activity with a booking link.\n"
+            "- Provide a packing checklist for the destination and dates.\n"
+            "- At the end, include a table summarizing the total costs for flights, hotel, food, activities, and miscellaneous.\n"
+            "- Analyze whether the user's entered budget is low, medium, or high for this trip and explain why."
+        )
         messages = [{"role": "system", "content": system_content}] + st.session_state.messages
         messages.append({
             "role": "user",
-            "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables."
+            "content": f"{currency_instruction} Format your answer in Markdown with clear headings, bullets, and cost tables.\n\n{extra_instructions}"
         })
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
             temperature=0.7,
-            max_tokens=1200
+            max_tokens=1800
         )
         assistant_response = response.choices[0].message.content
 
