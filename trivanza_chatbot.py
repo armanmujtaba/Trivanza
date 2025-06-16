@@ -131,6 +131,9 @@ st.markdown("""
     }
 }
 .chat-entry { margin-top: 10px; }
+.stChatInputContainer { position: fixed; bottom: 0; left: 0; right: 0; background: white; z-index: 1001; }
+.stChatInputContainer textarea { min-height: 2.5em; }
+.appview-container .main { padding-bottom: 8em !important; }
 </style>
 <div class="logo-container">
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
@@ -250,22 +253,30 @@ with st.expander("📋 Plan My Trip", expanded=not st.session_state.form_submitt
             st.session_state.form_submitted = True
             st.rerun()
 
-# ... (rest unchanged except below) ...
+# Render chat history above input
+for msg in st.session_state.messages:
+    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
+    with st.chat_message(msg["role"], avatar=avatar):
+        st.markdown(msg["content"])
 
-travel_keywords = [
-    # ... (same as before) ...
-]
-stemmed_keywords = set(ps.stem(k) for k in travel_keywords)
+# Chat input at the bottom
+user_input = st.chat_input(placeholder="Ask Trivanza anything travel-related:")
 
-with st.form("chat_form", clear_on_submit=True):
-    user_input = st.text_input("💬 Ask Trivanza anything travel-related:")
-    submitted = st.form_submit_button("Send")
-
-if submitted and user_input:
+if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     text_lower = user_input.lower()
     greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]
     words = re.findall(r'\w+', text_lower)
+    travel_keywords = [
+        "travel", "trip", "holiday", "vacation", "itinerary", "hotel", "flight",
+        "visa", "sightseeing", "tour", "activity", "adventure", "food", "restaurant",
+        "booking", "accommodation", "stay", "passport", "insurance", "luggage", "bag",
+        "currency", "weather", "destination", "explore", "plan", "train", "bus", "car",
+        "cruise", "resort", "spa", "wellness", "culture", "museum", "monument", "beach",
+        "mountain", "trek", "local", "guide", "airport", "transfer", "check-in", "checkout",
+        "packing", "budget", "cost", "price", "cheap", "luxury", "hostel", "airbnb", "shopping"
+    ]
+    stemmed_keywords = set(ps.stem(k) for k in travel_keywords)
     is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
 
     currency_type = "₹ INR"
@@ -386,8 +397,3 @@ if st.session_state.pending_form_response:
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.session_state.pending_form_response = False
     st.rerun()
-
-for msg in st.session_state.messages:
-    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
-    with st.chat_message(msg["role"], avatar=avatar):
-        st.markdown(msg["content"])
