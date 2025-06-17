@@ -162,6 +162,8 @@ def format_trip_summary(ctx):
     )
 
 # Session state setup
+if "trip_form_expanded" not in st.session_state:
+    st.session_state.trip_form_expanded = True
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "form_submitted" not in st.session_state:
@@ -174,8 +176,6 @@ if "user_history" not in st.session_state:
     st.session_state.user_history = []
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
-if "trip_form_expanded" not in st.session_state:
-    st.session_state.trip_form_expanded = True  # Form starts expanded
 
 st.markdown("""
 <style>
@@ -230,7 +230,6 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
             origin = st.text_input("🌍 Origin", placeholder="e.g., New Delhi", key="origin")
             destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="destination")
 
-        # Purpose of Travel selectbox
         purpose_options = [
             "Leisure / Holiday",
             "Adventure",
@@ -250,7 +249,6 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
             key="purpose_of_travel"
         )
 
-        # Preferred Mode of Transport selectbox
         transport_options = [
             "Flight",
             "Train",
@@ -329,7 +327,6 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
             key="activities_interests"
         )
 
-        # Food Preferences
         food_preferences_options = [
             "Vegetarian",
             "Vegan",
@@ -348,7 +345,6 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
             key="food_preferences"
         )
 
-        # Communication & Connectivity
         comm_connectivity_options = [
             "English Spoken",
             "Language Barrier",
@@ -381,13 +377,11 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
                 f"Communication & Connectivity: {', '.join(comm_connectivity) if comm_connectivity else 'None'}. "
                 f"Sustainability: {sustainability}, "
                 f"Cultural: {cultural_pref}. "
-                f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
+                f"Please ensure all costs are shown in Indian Rupees (₹, INR). "
+                f"For every day, include realistic local transportation options within the destination (such as taxi, metro, bus, auto-rickshaw, bike rental, etc.) and show their cost for the group. Do this for every day and for every activity that requires moving between locations, not just airport transfers."
             )
-            # Clear chat history so old itinerary vanishes
             st.session_state.messages = []
-            # Set form to minimize after submit
             st.session_state.trip_form_expanded = False
-
             st.session_state["pending_llm_prompt"] = short_prompt
             st.session_state.trip_context = {
                 "origin": origin.strip(),
@@ -442,7 +436,6 @@ if user_input:
             print("OpenAI API error:", e)
             st.error(f"OpenAI API error: {e}")
             assistant_response = "I'm unable to assist with creating itineraries at the moment. Let me know if you need help with anything else."
-
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.rerun()
 
@@ -462,7 +455,6 @@ if st.session_state.pending_form_response:
         print("OpenAI API error:", e)
         st.error(f"OpenAI API error: {e}")
         assistant_response = "I'm unable to assist with creating itineraries at the moment. Let me know if you need help with anything else."
-
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.session_state.pending_form_response = False
     st.rerun()
