@@ -1,6 +1,5 @@
 import streamlit as st
 from openai import OpenAI
-import re
 from datetime import date, timedelta
 
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
@@ -15,38 +14,56 @@ def is_greeting_or_planning(text):
     text_lower = text.lower()
     return any(greet in text_lower for greet in greetings)
 
-SYSTEM_PROMPT = """
-You are Trivanza, an expert AI travel assistant. 
-For every itinerary, perform ALL calculations yourself.
-For each day, list each item (flight, hotel, meal, activity, transport, etc.) with a cost.
-At the end of each day, calculate and show the exact daily total (sum of all items).
-After the last day, provide an overall cost breakdown with the grand total.
-Format the ENTIRE output in Markdown, using headings, bullet points, and cost tables if needed.
-NEVER leave calculations or formatting to the user or to code. Do not skip any calculations.
-If the user requests a modification, recalculate and reformat everything as above.
-Always ask after generating an itinerary: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
-Example format:
+STRICT_SYSTEM_PROMPT = """
+You are Trivanza, an expert AI travel assistant.
 
-## Day 1: Arrival in Paris (2025-08-01)
-✈️ Flight: Delhi to Paris, ₹35,000 [Book](https://...)
-🚕 Airport transfer, ₹2,000 [Book](https://...)
-🏨 Hotel: Ibis Paris, ₹6,000 [Book](https://...)
-🍽️ Dinner at Le Relais, ₹1,500 [Book](https://...)
+You MUST follow all these instructions STRICTLY:
+1. Always begin with a warm, one-line greeting (e.g., "Hello Traveler! Let's plan your adventure!").
+2. For every itinerary output:
+    - Use Markdown, but never use heading levels higher than `###`.
+    - Each day should be started with a heading: `### Day N: <activity/city> (<YYYY-MM-DD>)`.
+    - Every single itinerary item (flight, hotel, meal, activity, transportation, etc.) MUST be on its own separate line.
+    - For every flight, hotel, and restaurant/meal, suggest a REALISTIC option by NAME (e.g., "Air India AI-123", "Ibis Paris Montmartre", "Le Relais Restaurant").
+    - Each major item (flight, hotel, meal, and main activity) MUST include a real, working, direct booking or info link. Always use a plausible link (e.g., [Book](https://www.booking.com/hotel/fr/ibis-paris-montmartre), [Book Flight](https://www.airindia.in/) or [Menu](https://www.zomato.com/)). Never use placeholder or fake links.
+    - Show the cost for each item and sum exact costs for each day: `🎯 Daily Total: ₹<amount>`.
+    - After all days, give a cost breakdown (bulleted), a packing checklist, a budget analysis, and one pro tip for the destination.
+    - At the end, always ask: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
+3. Never use heading sizes above `###`.
+4. Never put multiple items on one line (each must be on its own line).
+5. Never leave out booking/info links for major items.
+6. Do not add, change, or fix formatting in code. All formatting MUST be performed by you, the AI.
+7. If a user requests a modification, recalculate and reformat as above.
+8. Greet the user at the start of every new itinerary.
+
+Example:
+
+Hello Traveler! Here is your Paris trip itinerary:
+
+### Day 1: Arrival in Paris (2025-08-01)
+✈️ Flight: Air India AI-123, Delhi to Paris, ₹35,000 [Book](https://www.airindia.in/)
+🚕 Airport transfer: Welcome Pickups, ₹2,000 [Book](https://www.welcomepickups.com/)
+🏨 Hotel: Ibis Paris Montmartre, ₹6,000 [Book](https://www.booking.com/hotel/fr/ibis-paris-montmartre)
+🍽️ Dinner: Le Relais Restaurant, ₹1,500 [Menu](https://www.zomato.com/paris/le-relais)
 🎯 Daily Total: ₹44,500
 
-*(Sum = 35000 + 2000 + 6000 + 1500 = 44,500)*
+### Day 2: Explore Paris (2025-08-02)
+...
 
-After all days, provide:
-- Cost breakdown by category
-- Packing checklist for the destination/month
-- Budget analysis
-- Destination Pro Tip
-- **Grand Total: ₹sum**
+- Cost Breakdown:
+    - Flights: ₹35,000
+    - Accommodation: ₹6,000
+    ...
+- Packing Checklist:
+    - Passport, power adapter, ...
+- Budget Analysis: Well within your budget.
+- Paris Pro Tip: Use metro for fast travel!
+
+Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly.
 """
 
 greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
 I'm excited to help you with your travel plans.
-- Submit Plan My Trip form for customised itinerary  
+- Submit Plan My Trip form for a customised itinerary  
 - Use chat box for your other travel related queries"""
 
 if "messages" not in st.session_state:
@@ -128,8 +145,6 @@ with st.expander("📋 Plan My Trip", expanded=False):
         if submit:
             st.success("✅ Generating your personalized itinerary...")
 
-            days = (to_date - from_date).days + 1
-            month = from_date.strftime("%B")
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
                 f"Budget: {currency_type} {budget_amount}. "
@@ -143,8 +158,7 @@ with st.expander("📋 Plan My Trip", expanded=False):
                 "content": short_prompt
             })
             st.session_state["pending_llm_prompt"] = short_prompt
-
-            trip_context = {
+            st.session_state.trip_context = {
                 "origin": origin.strip(),
                 "destination": destination.strip(),
                 "from_date": from_date,
@@ -160,8 +174,7 @@ with st.expander("📋 Plan My Trip", expanded=False):
                 "currency_type": currency_type,
                 "stay": stay
             }
-            st.session_state.trip_context = trip_context
-            st.session_state.user_history.append(trip_context)
+            st.session_state.user_history.append(st.session_state.trip_context)
             st.session_state.pending_form_response = True
             st.session_state.form_submitted = True
             st.rerun()
@@ -172,7 +185,6 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"], avatar=avatar):
         st.markdown(msg["content"])
 
-# Chat input at the bottom
 user_input = st.chat_input(placeholder="How may I help you today?")
 
 if user_input:
@@ -183,7 +195,7 @@ if user_input:
     else:
         N = 8
         chat_history = st.session_state.messages[-N:]
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + chat_history
+        messages = [{"role": "system", "content": STRICT_SYSTEM_PROMPT}] + chat_history
         try:
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -203,7 +215,7 @@ if user_input:
 if st.session_state.pending_form_response:
     try:
         prompt = st.session_state["pending_llm_prompt"]
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": STRICT_SYSTEM_PROMPT}]
         messages.append({"role": "user", "content": prompt})
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
