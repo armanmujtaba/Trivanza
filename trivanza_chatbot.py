@@ -117,6 +117,7 @@ def format_trip_summary(ctx):
         f"- **Interests:** {interests}\n"
     )
 
+# Session state setup
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "form_submitted" not in st.session_state:
@@ -129,6 +130,8 @@ if "user_history" not in st.session_state:
     st.session_state.user_history = []
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
+if "trip_form_expanded" not in st.session_state:
+    st.session_state.trip_form_expanded = True
 
 st.markdown("""
 <style>
@@ -156,7 +159,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-with st.expander("📋 Plan My Trip", expanded=False):
+with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_expanded", True)):
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
 
@@ -195,7 +198,6 @@ with st.expander("📋 Plan My Trip", expanded=False):
 
         if submit:
             st.success("✅ Generating your personalized itinerary...")
-
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
                 f"Budget: {currency_type} {budget_amount}. "
@@ -203,8 +205,11 @@ with st.expander("📋 Plan My Trip", expanded=False):
                 f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}. "
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
             )
+            # Clear chat history so old itinerary vanishes
+            st.session_state.messages = []
+            # Set form to minimize after submit
+            st.session_state.trip_form_expanded = False
 
-            # Do not append short_prompt to messages!
             st.session_state["pending_llm_prompt"] = short_prompt
             st.session_state.trip_context = {
                 "origin": origin.strip(),
@@ -227,6 +232,10 @@ with st.expander("📋 Plan My Trip", expanded=False):
             st.session_state.form_submitted = True
             st.rerun()
 
+# Set form to expand only if not submitted, otherwise stay minimized
+if not st.session_state.form_submitted:
+    st.session_state.trip_form_expanded = True
+
 if st.session_state.form_submitted and st.session_state.trip_context:
     st.info(format_trip_summary(st.session_state.trip_context))
 
@@ -239,7 +248,6 @@ user_input = st.chat_input(placeholder="How may I help you today?")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-
     if is_greeting_or_planning(user_input):
         assistant_response = greeting_message
     else:
