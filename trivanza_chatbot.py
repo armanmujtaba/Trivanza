@@ -42,15 +42,19 @@ Hello Traveler! Here is your Paris trip itinerary:
 
 Cost Breakdown:
 
-    ✈️ Flights: ₹XX,XXX
+    ✈️ Flights: ₹<sum of all Flights>
 
-    🏨 Accommodation: ₹XX,XXX
+    🏨 Accommodation: ₹<sum of all Accommodation>
 
-    🍽️ Meals: ₹XX,XXX
+    🍽️ Meals: ₹<sum of all Meals>
 
-    🚗 Transportation: ₹XX,XXX
+    🚗 Transportation: ₹<sum of all Transportation>
 
-    💰 **Grand Total:** ₹<sum of all categories>
+    🚶‍♂️Activities: ₹<sum of all Activities>
+
+    🔀 Travel Extras: ₹<sum of all others>
+
+    💰 Grand Total: ₹<sum of all categories>
 
 Packing Checklist:
     🎒 Packing Checklist: Passport, comfortable walking shoes, camera, travel adapter.
