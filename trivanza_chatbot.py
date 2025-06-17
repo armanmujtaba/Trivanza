@@ -105,6 +105,8 @@ if "user_history" not in st.session_state:
     st.session_state.user_history = []
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
+if "last_itinerary_generated" not in st.session_state:
+    st.session_state.last_itinerary_generated = False
 
 st.markdown("""
 <style>
@@ -141,12 +143,13 @@ def is_greeting_or_planning(text):
     greetings = [
         "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
         "plan", "itinerary", "plan my trip", "journey", "my journey", "trip planning",
-        "plan itinerary", "plan my itinerary"
+        "plan itinerary", "plan my itinerary", "trip", "travel"
     ]
     text_lower = text.lower()
     return any(greet in text_lower for greet in greetings)
 
 SYSTEM_PROMPT = """You are Trivanza, an expert AI travel assistant. Help users with trip planning, destination suggestions, itineraries, travel tips, and anything related to travel. Always remember the conversation context and assist naturally.
+Whenever you generate an itinerary, after presenting it, ALWAYS ask the user: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly." If the user requests a modification, update the itinerary as per their request.
 If a user asks something unrelated to travel, you may politely explain your expertise is travel, but do not repeat fallback messages.
 """
 
@@ -270,6 +273,7 @@ if user_input:
 
     if is_greeting_or_planning(user_input):
         assistant_response = greeting_message
+        st.session_state.last_itinerary_generated = False
     else:
         # Let the LLM handle all context and intent
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -284,6 +288,13 @@ if user_input:
             )
             assistant_response = response.choices[0].message.content
             assistant_response = post_process_itinerary(assistant_response)
+
+            # If the assistant just generated an itinerary, set flag so it won't ask again on next message
+            if "Packing Checklist" in assistant_response or "## Day" in assistant_response:
+                st.session_state.last_itinerary_generated = True
+            else:
+                st.session_state.last_itinerary_generated = False
+
         except Exception:
             assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
 
@@ -322,8 +333,12 @@ if st.session_state.pending_form_response:
             "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line.\n"
             f"{currency_instruction}\nFormat your answer in Markdown."
         )
-        messages = st.session_state.messages.copy()
-        messages.insert(0, {"role": "system", "content": user_instructions})
+        # Add the extended system prompt so LLM will always ask for modification after generating itinerary
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        # All previous messages for context
+        for msg in st.session_state.messages:
+            messages.append(msg)
+        # Add the actual itinerary planning prompt
         messages.append({
             "role": "user",
             "content": st.session_state["pending_llm_prompt"]
@@ -336,8 +351,10 @@ if st.session_state.pending_form_response:
         )
         assistant_response = response.choices[0].message.content
         assistant_response = post_process_itinerary(assistant_response)
+        st.session_state.last_itinerary_generated = True
     except Exception:
         assistant_response = "Sorry, I'm unable to generate your itinerary right now."
+        st.session_state.last_itinerary_generated = False
 
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.session_state.pending_form_response = False
