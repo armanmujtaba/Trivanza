@@ -1,9 +1,51 @@
 import streamlit as st
 from openai import OpenAI
 from datetime import date
+import pandas as pd
 
 st.set_page_config(page_title="✈️ Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
+
+# Currency rate table for INR conversion
+CURRENCY_RATES = pd.DataFrame([
+    {"Currency": "US Dollar", "Code": "USD", "INR_Value": 79.50},
+    {"Currency": "Euro", "Code": "EUR", "INR_Value": 86.30},
+    {"Currency": "British Pound", "Code": "GBP", "INR_Value": 102.40},
+    {"Currency": "Japanese Yen", "Code": "JPY", "INR_Value": 0.53},
+    {"Currency": "Australian Dollar", "Code": "AUD", "INR_Value": 51.80},
+    {"Currency": "Canadian Dollar", "Code": "CAD", "INR_Value": 59.70},
+    {"Currency": "Swiss Franc", "Code": "CHF", "INR_Value": 87.20},
+    {"Currency": "Chinese Yuan", "Code": "CNY", "INR_Value": 11.05},
+    {"Currency": "UAE Dirham", "Code": "AED", "INR_Value": 21.60},
+    {"Currency": "Singapore Dollar", "Code": "SGD", "INR_Value": 58.90},
+    {"Currency": "New Zealand Dollar", "Code": "NZD", "INR_Value": 48.50},
+    {"Currency": "Russian Ruble", "Code": "RUB", "INR_Value": 0.88},
+    {"Currency": "South African Rand", "Code": "ZAR", "INR_Value": 4.15},
+    {"Currency": "Brazilian Real", "Code": "BRL", "INR_Value": 15.30},
+    {"Currency": "Saudi Riyal", "Code": "SAR", "INR_Value": 21.20},
+    {"Currency": "Qatari Riyal", "Code": "QAR", "INR_Value": 21.80},
+    {"Currency": "Kuwaiti Dinar", "Code": "KWD", "INR_Value": 259.20},
+    {"Currency": "Bahraini Dinar", "Code": "BHD", "INR_Value": 211.40},
+    {"Currency": "Omani Rial", "Code": "OMR", "INR_Value": 206.30},
+])
+
+def get_inr_value(currency_code):
+    row = CURRENCY_RATES[CURRENCY_RATES["Code"] == currency_code]
+    if row.empty:
+        return None
+    return float(row.iloc[0]["INR_Value"])
+
+def convert_to_inr(amount, currency_code):
+    inr_per_unit = get_inr_value(currency_code)
+    if inr_per_unit is None:
+        return None
+    return round(amount * inr_per_unit, 2)
+
+def add_price_with_inr(local_amount, local_currency_code):
+    inr_value = convert_to_inr(local_amount, local_currency_code)
+    if inr_value is None:
+        return f"{local_currency_code} {local_amount} (INR conversion unavailable)"
+    return f"{local_currency_code} {local_amount:.2f} (₹{inr_value:.2f})"
 
 STRICT_SYSTEM_PROMPT = """
 IMPORTANT: You are a travel assistant. You help with ALL aspects of travel, including but not limited to:
@@ -46,7 +88,9 @@ IMPORTANT: For every Preferred Transport, Accommodation Preferences, Food Prefer
 
 IMPORTANT: For every day, always include realistic local transportation options within the destination (such as taxi, metro, bus, auto-rickshaw, tuk-tuk, bike rental, etc.) for getting between activities/attractions, and show their cost for the whole group. Do not skip local transport except on days where all activities are at the hotel/accommodation.
 
-IMPORTANT: For international trips (when the destination country is different from the origin), all prices for flights, hotels, meals, activities, and local transport must be shown in both the destination country's currency and in INR, using realistic recent exchange rates. Clearly mention the exchange rate used. Show both currencies side by side for every price and in all daily and total cost breakdowns.
+IMPORTANT: For international trips (when the destination country is different from the origin), all prices for flights, hotels, meals, activities, and local transport must be shown in both the destination country's currency and in INR, using realistic recent exchange rates. Clearly mention the exchange rate used. Show both currencies side by side for every price and in all daily and total cost breakdowns. Use realistic prices for the destination country, not Indian prices.
+
+IMPORTANT: Self Drive Car must be included as a transport option wherever relevant, especially if the user selects it. Suggest realistic and best local self-drive car rental options by name and booking link.
 
 You are Trivanza, an expert and smart AI travel advisor, travel planner, travel assistant and travel consultant, a one-stop solution for all the travelers.
 
@@ -165,7 +209,7 @@ def format_trip_summary(ctx):
 
 # Session state setup
 if "trip_form_expanded" not in st.session_state:
-    st.session_state.trip_form_expanded = False  # Default to minimized
+    st.session_state.trip_form_expanded = False  # Default minimized
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "form_submitted" not in st.session_state:
@@ -205,7 +249,6 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# The form will stay minimized unless user manually expands it
 with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expanded):
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
@@ -257,6 +300,7 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
             "Train",
             "Bus",
             "Car Rental",
+            "Self Drive Car",  # <-- Added here
             "Walking",
             "Bicycle",
             "Motorbike",
@@ -380,8 +424,8 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
                 f"Communication & Connectivity: {', '.join(comm_connectivity) if comm_connectivity else 'None'}. "
                 f"Sustainability: {sustainability}, "
                 f"Cultural: {cultural_pref}. "
-                f"Please ensure all costs are shown in Indian Rupees (₹, INR). "
-                f"For international trips (where the destination country is different from the origin country), show all prices in the destination country's currency as well as INR, using a realistic, up-to-date exchange rate. Clearly mention the conversion rate used and show both currencies side by side for each item and in cost breakdowns. "
+                f"For international trips, for each price (flight, hotel, meal, activity, etc.), show the price in the destination currency and also in INR using the following rates: USD 79.50, EUR 86.30, GBP 102.40, JPY 0.53, AUD 51.80, CAD 59.70, CHF 87.20, CNY 11.05, AED 21.60, SGD 58.90, NZD 48.50, RUB 0.88, ZAR 4.15, BRL 15.30, SAR 21.20, QAR 21.80, KWD 259.20, BHD 211.40, OMR 206.30. Always show both values clearly, e.g.: 'USD 100 (₹7950)'. Use the most realistic price for the destination. "
+                f"If user selects 'Self Drive Car' as a transport, include realistic self-drive car rental options by name and booking link. "
                 f"For every day, include realistic local transportation options within the destination (such as taxi, metro, bus, auto-rickshaw, bike rental, etc.) and show their cost for the group. Do this for every day and for every activity that requires moving between locations, not just airport transfers."
             )
             st.session_state.messages = []
