@@ -131,7 +131,7 @@ if "user_history" not in st.session_state:
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
 if "trip_form_expanded" not in st.session_state:
-    st.session_state.trip_form_expanded = True
+    st.session_state.trip_form_expanded = False  # By default, form is minimized
 
 st.markdown("""
 <style>
@@ -159,7 +159,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_expanded", True)):
+with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_expanded", False)):
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
 
@@ -234,7 +234,7 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
 
 # Set form to expand only if not submitted, otherwise stay minimized
 if not st.session_state.form_submitted:
-    st.session_state.trip_form_expanded = True
+    st.session_state.trip_form_expanded = False
 
 if st.session_state.form_submitted and st.session_state.trip_context:
     st.info(format_trip_summary(st.session_state.trip_context))
