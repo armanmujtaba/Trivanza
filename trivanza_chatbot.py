@@ -132,27 +132,29 @@ def format_trip_summary(ctx):
     date_fmt = f"{ctx['from_date']} to {ctx['to_date']}"
     travelers = f"{ctx['group_size']} {'person' if ctx['group_size']==1 else 'people'} ({ctx['traveler_type']})"
     budget = f"{ctx['currency_type']} {ctx['budget_amount']}"
-    dietary = ', '.join(ctx['dietary_pref']) if ctx['dietary_pref'] else 'None'
-    language = ctx['language_pref']
+    food = ', '.join(ctx['food_preferences']) if ctx.get('food_preferences') else 'None'
+    comm_conn = ', '.join(ctx['comm_connectivity']) if ctx.get('comm_connectivity') else 'None'
     sustainability = ctx['sustainability']
     cultural = ctx['cultural_pref']
-    interests = ', '.join(ctx['custom_activities']) if ctx['custom_activities'] else 'None'
-    stay = ctx['stay']
+    activities_interests = ', '.join(ctx['activities_interests']) if ctx.get('activities_interests') else 'None'
+    accommodation = ', '.join(ctx['accommodation_pref']) if ctx.get('accommodation_pref') else 'None'
     mode = ctx.get("mode_of_transport", "Any")
+    purpose = ctx.get("purpose_of_travel", "None")
     return (
         f"**Trip Summary:**\n"
         f"- **From:** {ctx['origin']}\n"
         f"- **To:** {ctx['destination']}\n"
         f"- **Dates:** {date_fmt}\n"
         f"- **Travelers:** {travelers}\n"
+        f"- **Purpose of Travel:** {purpose}\n"
         f"- **Budget:** {budget}\n"
-        f"- **Stay Type:** {stay}\n"
+        f"- **Accommodation Preferences:** {accommodation}\n"
         f"- **Preferred Transport:** {mode}\n"
-        f"- **Dietary Preferences:** {dietary}\n"
-        f"- **Preferred Language:** {language}\n"
+        f"- **Food Preferences:** {food}\n"
+        f"- **Communication & Connectivity:** {comm_conn}\n"
         f"- **Sustainability:** {sustainability}\n"
         f"- **Cultural Sensitivity:** {cultural}\n"
-        f"- **Interests:** {interests}\n"
+        f"- **Activities & Interests:** {activities_interests}\n"
     )
 
 # Session state setup
@@ -203,16 +205,66 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
 
         col1, col2 = st.columns(2)
         with col1:
-            traveler_type = st.selectbox("🧍 Traveler Type", ["Solo", "Couple", "Family", "Group"], key="traveler_type")
-            group_size = st.number_input("👥 Group Size", min_value=1, value=2, key="group_size")
+            traveler_type = st.selectbox(
+                "🧍 Traveler Type",
+                [
+                    "Solo",
+                    "Couple",
+                    "Family",
+                    "Group",
+                    "Senior",
+                    "Student",
+                    "Business Traveler",
+                    "LGBTQ+",
+                    "Disabled / Accessibility-Friendly",
+                    "Pet-Friendly"
+                ],
+                key="traveler_type"
+            )
+            group_size = st.number_input("👥 Group Size", min_value=1, value=1, key="group_size")
         with col2:
-            origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi", key="origin")
+            origin = st.text_input("🌍 Origin", placeholder="e.g., New Delhi", key="origin")
             destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="destination")
 
-        # Mode of Transport selectbox
+        # Purpose of Travel selectbox
+        purpose_options = [
+            "Leisure / Holiday",
+            "Adventure",
+            "Business",
+            "Honeymoon",
+            "Education / Study Abroad",
+            "Medical Tourism",
+            "Pilgrimage / Religious",
+            "Volunteer",
+            "Digital Nomad",
+            "Retirement",
+            "Conference / Event"
+        ]
+        purpose_of_travel = st.selectbox(
+            "🎯 Purpose of Travel",
+            purpose_options,
+            key="purpose_of_travel"
+        )
+
+        # Preferred Mode of Transport selectbox
+        transport_options = [
+            "Flight",
+            "Train",
+            "Bus",
+            "Car Rental",
+            "Walking",
+            "Bicycle",
+            "Motorbike",
+            "Boat / Ferry",
+            "Cruise",
+            "Public Transport (Metro/Bus/Tram)",
+            "Hiking / Trekking",
+            "Safari Vehicle",
+            "Camel / Elephant Ride"
+        ]
         mode_of_transport = st.selectbox(
             "🚌 Preferred Mode of Transport",
-            ["Any", "Flight", "Train", "Bus", "Car"],
+            transport_options,
             key="mode_of_transport"
         )
 
@@ -222,23 +274,93 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
         with col4:
             to_date = st.date_input("📅 To Date", min_value=from_date, key="to_date")
 
-        st.markdown("#### 💰 Budget & Stay")
+        st.markdown("#### 💰 Budget & Accommodation Preferences")
         col5, col6 = st.columns(2)
         with col5:
             budget_amount = st.number_input("💰 Budget", min_value=1000, step=1000, key="budget_amount")
         with col6:
             currency_type = st.selectbox("💱 Currency", ["₹ INR", "$ USD", "€ EUR", "£ GBP", "¥ JPY"], key="currency_type")
-        stay = st.selectbox("🏨 Stay Type", ["Hotel", "Hostel", "Airbnb", "Resort"], key="stay")
+        
+        accommodation_options = [
+            "Budget Hotel",
+            "Mid-Range Hotel",
+            "Luxury Hotel",
+            "Hostel",
+            "Airbnb / Vacation Rental",
+            "Homestay",
+            "Resort",
+            "Glamping",
+            "Camping",
+            "Boutique Hotel",
+            "Pet-Friendly",
+            "Accessible / Disability-Friendly"
+        ]
+        accommodation_pref = st.multiselect(
+            "🏨 Accommodation Preferences",
+            accommodation_options,
+            default=["Mid-Range Hotel"],
+            key="accommodation_pref"
+        )
 
-        st.markdown("#### 🎯 Preferences & Interests")
-        dietary_pref = st.multiselect("🥗 Dietary", ["Vegetarian", "Vegan", "Gluten-Free", "Halal", "Kosher"], key="dietary_pref")
+        st.markdown("#### 🎯 Activities & Interests")
+        activities_interests_options = [
+            "Sightseeing",
+            "Hiking / Trekking",
+            "Scuba Diving / Snorkeling",
+            "Wildlife Safaris",
+            "Museum Visits",
+            "Nightlife",
+            "Food & Drink",
+            "Shopping",
+            "Spa / Wellness",
+            "Photography",
+            "Surfing / Skiing",
+            "Yoga / Meditation",
+            "Local Experiences",
+            "Festival Attendance"
+        ]
+        activities_interests = st.multiselect(
+            "🎨 Activities & Interests",
+            activities_interests_options,
+            key="activities_interests"
+        )
+
+        # Food Preferences
+        food_preferences_options = [
+            "Vegetarian",
+            "Vegan",
+            "Gluten-Free",
+            "Non-Vegetarian",
+            "Halal",
+            "Kosher",
+            "Local Cuisine",
+            "Street Food",
+            "Fine Dining",
+            "Allergies"
+        ]
+        food_preferences = st.multiselect(
+            "🍽️ Food Preferences",
+            food_preferences_options,
+            key="food_preferences"
+        )
+
+        # Communication & Connectivity
+        comm_connectivity_options = [
+            "English Spoken",
+            "Language Barrier",
+            "Wi-Fi Required",
+            "SIM Card Needed",
+            "Translation Tools",
+            "Time Zone Considerations"
+        ]
+        comm_connectivity = st.multiselect(
+            "📡 Communication & Connectivity",
+            comm_connectivity_options,
+            key="comm_connectivity"
+        )
+
         sustainability = st.selectbox("🌱 Sustainability", ["None", "Eco-Friendly Stays", "Carbon Offset Flights", "Zero-Waste Activities"], key="sustainability")
-        language_pref = st.selectbox("🌐 Language", ["English", "Hindi", "French", "Spanish", "Mandarin", "Local Phrases"], key="language_pref")
         cultural_pref = st.selectbox("👗 Cultural Sensitivity", ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"], key="cultural_pref")
-        custom_activities = st.multiselect("🎨 Interests", [
-            "Beaches", "Hiking", "Shopping", "Nightlife",
-            "Cultural Immersion", "Foodie Tour", "Adventure Sports"
-        ], key="custom_activities")
 
         submit = st.form_submit_button("🚀 Generate Itinerary")
 
@@ -246,14 +368,19 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
             st.success("✅ Generating your personalized itinerary...")
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
+                f"Purpose of Travel: {purpose_of_travel}. "
                 f"Preferred mode of transport: {mode_of_transport}. "
                 f"Budget: {currency_type} {budget_amount}. "
-                f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
-                f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}. "
+                f"Accommodation Preferences: {', '.join(accommodation_pref) if accommodation_pref else 'None'}. "
+                f"Activities & Interests: {', '.join(activities_interests) if activities_interests else 'None'}. "
+                f"Food Preferences: {', '.join(food_preferences) if food_preferences else 'None'}. "
+                f"Communication & Connectivity: {', '.join(comm_connectivity) if comm_connectivity else 'None'}. "
+                f"Sustainability: {sustainability}, "
+                f"Cultural: {cultural_pref}. "
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
             )
             # Clear chat history so old itinerary vanishes
-            st.session_state.messages = []
+           st.session_state.messages = []
             # Set form to minimize after submit
             st.session_state.trip_form_expanded = False
 
@@ -265,14 +392,15 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
                 "to_date": to_date,
                 "traveler_type": traveler_type,
                 "group_size": group_size,
-                "dietary_pref": dietary_pref,
-                "language_pref": language_pref,
+                "purpose_of_travel": purpose_of_travel,
+                "food_preferences": food_preferences,
+                "comm_connectivity": comm_connectivity,
                 "sustainability": sustainability,
                 "cultural_pref": cultural_pref,
-                "custom_activities": custom_activities,
+                "activities_interests": activities_interests,
                 "budget_amount": budget_amount,
                 "currency_type": currency_type,
-                "stay": stay,
+                "accommodation_pref": accommodation_pref,
                 "mode_of_transport": mode_of_transport
             }
             st.session_state.user_history.append(st.session_state.trip_context)
