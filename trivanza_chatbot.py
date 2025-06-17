@@ -2,9 +2,6 @@ import streamlit as st
 from openai import OpenAI
 import re
 from datetime import date, timedelta
-from nltk.stem import PorterStemmer
-
-ps = PorterStemmer()
 
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
@@ -75,21 +72,17 @@ def recommend_destinations(user_history, preferences):
         return "Recommendations unavailable."
 
 def post_process_itinerary(text):
-    # Convert [Book: ...] or [Info: ...] to Markdown links [Book](...)
+    # Clean up Markdown for nice display
     text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]\s]+)\]', r'[\1](\2)', text)
-    # Ensure each bullet, emoji, or heading starts on a new line
     text = re.sub(
         r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•\-])',
         r'\n\1', text
     )
-    # Ensure Markdown headings start on their own line (## Day N: ...)
     text = re.sub(r'(?<!\n)(## Day)', r'\n\1', text)
-    # Ensure each itinerary item is on its own line (extra safety: split on . or ; if multiple items in one line)
     fixed_lines = []
     for line in text.split('\n'):
-        # If line contains multiple emojis, split further
         splits = re.split(r'(?=(✈️|🏨|🍽️|🍜|🍹|🚌|🚕|🚶‍♀️|🛍️|🎯|🎉|🎭|🕌|🍴|🍣|🏖️|🚗|🚖|🚶‍♂️|🚴‍♂️|🌆))', line)
-        splits = [s for s in splits if s]  # remove empty
+        splits = [s for s in splits if s]
         if len(splits) > 1:
             for s in splits:
                 if s.strip():
@@ -97,7 +90,6 @@ def post_process_itinerary(text):
         else:
             fixed_lines.append(line.strip())
     text = '\n'.join(fixed_lines)
-    # Remove excessive newlines
     text = re.sub(r'\n{3,}', r'\n\n', text)
     return text.strip()
 
@@ -145,8 +137,6 @@ I'm excited to help you with your travel plans.
 - Submit Plan My Trip form for customised itinerary  
 - Use chat box for your other travel related queries"""
 
-fallback_message = "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
-
 def is_greeting_or_planning(text):
     greetings = [
         "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
@@ -156,9 +146,8 @@ def is_greeting_or_planning(text):
     text_lower = text.lower()
     return any(greet in text_lower for greet in greetings)
 
-SYSTEM_PROMPT = """You are Trivanza, a smart travel assistant.
-Only answer questions that are related to travel, trip planning, destinations, activities, flights, visas, tourism, cultures, food, transport, or anything a traveler may want to know.
-If a user asks something unrelated to travel, reply: "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
+SYSTEM_PROMPT = """You are Trivanza, an expert AI travel assistant. Help users with trip planning, destination suggestions, itineraries, travel tips, and anything related to travel. Always remember the conversation context and assist naturally.
+If a user asks something unrelated to travel, you may politely explain your expertise is travel, but do not repeat fallback messages.
 """
 
 with st.expander("📋 Plan My Trip", expanded=False):  # Default minimized
@@ -282,7 +271,7 @@ if user_input:
     if is_greeting_or_planning(user_input):
         assistant_response = greeting_message
     else:
-        # Let the LLM judge travel-relatedness
+        # Let the LLM handle all context and intent
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for msg in st.session_state.messages:
             messages.append(msg)
