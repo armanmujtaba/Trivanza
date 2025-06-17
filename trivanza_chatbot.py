@@ -5,15 +5,6 @@ from datetime import date, timedelta
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
 
-def is_greeting_or_planning(text):
-    greetings = [
-        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
-        "plan", "itinerary", "plan my trip", "journey", "my journey", "trip planning",
-        "plan itinerary", "plan my itinerary", "trip", "travel"
-    ]
-    text_lower = text.lower()
-    return any(greet in text_lower for greet in greetings)
-
 STRICT_SYSTEM_PROMPT = """
 You are Trivanza, an expert AI travel assistant.
 
@@ -22,14 +13,14 @@ You MUST follow all these instructions STRICTLY:
 2. For every itinerary output:
     - Use Markdown, but never use heading levels higher than `###`.
     - Each day should be started with a heading: `### Day N: <activity/city> (<YYYY-MM-DD>)`.
-    - Every single itinerary item (flight, hotel, meal, activity, transportation, etc.) MUST be on its own separate line.
+    - Every single itinerary item (flight, hotel, meal, activity, transportation, etc.) MUST be in a separate paragraph. That is, after each item, output **two line breaks** (an empty line) so that in Markdown each item is always in its own block and never merged into the same line.
     - For every flight, hotel, and restaurant/meal, suggest a REALISTIC option by NAME (e.g., "Air India AI-123", "Ibis Paris Montmartre", "Le Relais Restaurant").
     - Each major item (flight, hotel, meal, and main activity) MUST include a real, working, direct booking or info link. Always use a plausible link (e.g., [Book](https://www.booking.com/hotel/fr/ibis-paris-montmartre), [Book Flight](https://www.airindia.in/) or [Menu](https://www.zomato.com/)). Never use placeholder or fake links.
     - Show the cost for each item and sum exact costs for each day: `🎯 Daily Total: ₹<amount>`.
     - After all days, give a cost breakdown (bulleted), a packing checklist, a budget analysis, and one pro tip for the destination.
     - At the end, always ask: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
 3. Never use heading sizes above `###`.
-4. Never put multiple items on one line (each must be on its own line).
+4. Never put more than one itinerary item on a single line or paragraph. Never use bullet points, commas, or grouping for itinerary items—**each must be in its own paragraph, separated by TWO line breaks.**
 5. Never leave out booking/info links for major items.
 6. Do not add, change, or fix formatting in code. All formatting MUST be performed by you, the AI.
 7. If a user requests a modification, recalculate and reformat as above.
@@ -40,13 +31,19 @@ Example:
 Hello Traveler! Here is your Paris trip itinerary:
 
 ### Day 1: Arrival in Paris (2025-08-01)
+
 ✈️ Flight: Air India AI-123, Delhi to Paris, ₹35,000 [Book](https://www.airindia.in/)
+
 🚕 Airport transfer: Welcome Pickups, ₹2,000 [Book](https://www.welcomepickups.com/)
+
 🏨 Hotel: Ibis Paris Montmartre, ₹6,000 [Book](https://www.booking.com/hotel/fr/ibis-paris-montmartre)
+
 🍽️ Dinner: Le Relais Restaurant, ₹1,500 [Menu](https://www.zomato.com/paris/le-relais)
+
 🎯 Daily Total: ₹44,500
 
 ### Day 2: Explore Paris (2025-08-02)
+
 ...
 
 - Cost Breakdown:
@@ -65,6 +62,15 @@ greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Trave
 I'm excited to help you with your travel plans.
 - Submit Plan My Trip form for a customised itinerary  
 - Use chat box for your other travel related queries"""
+
+def is_greeting_or_planning(text):
+    greetings = [
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
+        "plan", "itinerary", "plan my trip", "journey", "my journey", "trip planning",
+        "plan itinerary", "plan my itinerary", "trip", "travel"
+    ]
+    text_lower = text.lower()
+    return any(greet in text_lower for greet in greetings)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
