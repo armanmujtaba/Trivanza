@@ -6,95 +6,48 @@ from datetime import date, timedelta
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
 
-def analyze_sentiment(text):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a sentiment analysis tool. Classify this review as Positive, Neutral, or Negative and explain why."},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.0,
-            max_tokens=100
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        print("Sentiment analysis error:", e)
-        return "Sentiment analysis unavailable."
+def is_greeting_or_planning(text):
+    greetings = [
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
+        "plan", "itinerary", "plan my trip", "journey", "my journey", "trip planning",
+        "plan itinerary", "plan my itinerary", "trip", "travel"
+    ]
+    text_lower = text.lower()
+    return any(greet in text_lower for greet in greetings)
 
-def detect_and_translate(text, target_language="English"):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Detect the language of the user's input. If it is not English, translate it to English. Reply as: Detected: <Language>. Translation: <English translation>."},
-                {"role": "user", "content": text}
-            ],
-            temperature=0.0,
-            max_tokens=120
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        print("Language detection error:", e)
-        return "Language detection unavailable."
+SYSTEM_PROMPT = """
+You are Trivanza, an expert AI travel assistant. 
+For every itinerary, perform ALL calculations yourself.
+For each day, list each item (flight, hotel, meal, activity, transport, etc.) with a cost.
+At the end of each day, calculate and show the exact daily total (sum of all items).
+After the last day, provide an overall cost breakdown with the grand total.
+Format the ENTIRE output in Markdown, using headings, bullet points, and cost tables if needed.
+NEVER leave calculations or formatting to the user or to code. Do not skip any calculations.
+If the user requests a modification, recalculate and reformat everything as above.
+Always ask after generating an itinerary: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
+Example format:
 
-def recognize_destination(image_url):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo-vision-preview",
-            messages=[
-                {"role": "system", "content": "Given a travel photo, try to identify the destination or suggest similar travel destinations. Respond as: 'This looks like <destination> or similar to <alternatives>'."},
-                {"role": "user", "content": f"<image>{image_url}</image>"}
-            ],
-            temperature=0.0,
-            max_tokens=150
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        print("Destination recognition error:", e)
-        return "Image recognition unavailable."
+## Day 1: Arrival in Paris (2025-08-01)
+✈️ Flight: Delhi to Paris, ₹35,000 [Book](https://...)
+🚕 Airport transfer, ₹2,000 [Book](https://...)
+🏨 Hotel: Ibis Paris, ₹6,000 [Book](https://...)
+🍽️ Dinner at Le Relais, ₹1,500 [Book](https://...)
+🎯 Daily Total: ₹44,500
 
-def recommend_destinations(user_history, preferences):
-    try:
-        prompt = (
-            "Given the user's travel history and preferences, recommend 3 destinations with reasons. "
-            "User history: " + str(user_history) +
-            "\nPreferences: " + str(preferences)
-        )
-        response = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You are a travel recommendation engine. Suggest 3 destinations and explain why."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=200
-        )
-        return response.choices[0].message.content
-    except Exception as e:
-        print("Destination recommendation error:", e)
-        return "Recommendations unavailable."
+*(Sum = 35000 + 2000 + 6000 + 1500 = 44,500)*
 
-def post_process_itinerary(text):
-    text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]\s]+)\]', r'[\1](\2)', text)
-    text = re.sub(
-        r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•\-])',
-        r'\n\1', text
-    )
-    text = re.sub(r'(?<!\n)(## Day)', r'\n\1', text)
-    fixed_lines = []
-    for line in text.split('\n'):
-        splits = re.split(r'(?=(✈️|🏨|🍽️|🍜|🍹|🚌|🚕|🚶‍♀️|🛍️|🎯|🎉|🎭|🕌|🍴|🍣|🏖️|🚗|🚖|🚶‍♂️|🚴‍♂️|🌆))', line)
-        splits = [s for s in splits if s]
-        if len(splits) > 1:
-            for s in splits:
-                if s.strip():
-                    fixed_lines.append(s.strip())
-        else:
-            fixed_lines.append(line.strip())
-    text = '\n'.join(fixed_lines)
-    text = re.sub(r'\n{3,}', r'\n\n', text)
-    return text.strip()
+After all days, provide:
+- Cost breakdown by category
+- Packing checklist for the destination/month
+- Budget analysis
+- Destination Pro Tip
+- **Grand Total: ₹sum**
+"""
+
+greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
+I'm excited to help you with your travel plans.
+- Submit Plan My Trip form for customised itinerary  
+- Use chat box for your other travel related queries"""
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -134,25 +87,6 @@ st.markdown("""
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true">
 </div>
 """, unsafe_allow_html=True)
-
-greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
-I'm excited to help you with your travel plans.
-- Submit Plan My Trip form for customised itinerary  
-- Use chat box for your other travel related queries"""
-
-def is_greeting_or_planning(text):
-    greetings = [
-        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
-        "plan", "itinerary", "plan my trip", "journey", "my journey", "trip planning",
-        "plan itinerary", "plan my itinerary", "trip", "travel"
-    ]
-    text_lower = text.lower()
-    return any(greet in text_lower for greet in greetings)
-
-SYSTEM_PROMPT = """You are Trivanza, an expert AI travel assistant. Help users with trip planning, destination suggestions, itineraries, travel tips, and anything related to travel. Always remember the conversation context and assist naturally.
-Whenever you generate an itinerary, after presenting it, ALWAYS ask the user: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly." If the user requests a modification, update the itinerary as per their request.
-If a user asks something unrelated to travel, you may politely explain your expertise is travel, but do not repeat fallback messages.
-"""
 
 with st.expander("📋 Plan My Trip", expanded=False):
     with st.form("travel_form", clear_on_submit=False):
@@ -195,29 +129,7 @@ with st.expander("📋 Plan My Trip", expanded=False):
             st.success("✅ Generating your personalized itinerary...")
 
             days = (to_date - from_date).days + 1
-            dates = [(from_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(days)]
             month = from_date.strftime("%B")
-
-            user_instructions = (
-                "IMPORTANT:\n"
-                "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
-                "Use the correct day number and real date for each day. "
-                "EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
-                "<emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
-                "- For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
-                "- For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
-                "- For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
-                "- Every major item MUST have a real, working, direct booking/info link.\n"
-                "- Every day MUST include at least one local transportation item with booking/info link and cost, and be included in daily and total costs.\n"
-                "- The return flight MUST appear on the last day, with booking link and cost, and be included in the day and total costs.\n"
-                "- For accommodation, food, and activities, choose and explicitly mention the best options within the user’s budget. If budget is tight, suggest a lower-cost alternative and explain.\n"
-                "Daily total must be the sum of ALL items for that day, including all flights, hotels, food, transport, and activities. "
-                "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
-                "After all days, show cost breakdown as bullet points. "
-                f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
-                "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line."
-            )
-
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
                 f"Budget: {currency_type} {budget_amount}. "
@@ -226,17 +138,11 @@ with st.expander("📋 Plan My Trip", expanded=False):
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
             )
 
-            full_prompt = (
-                short_prompt +
-                "\nFormat your answer in Markdown.\n\n" +
-                user_instructions
-            )
-
             st.session_state.messages.append({
                 "role": "user",
                 "content": short_prompt
             })
-            st.session_state["pending_llm_prompt"] = full_prompt
+            st.session_state["pending_llm_prompt"] = short_prompt
 
             trip_context = {
                 "origin": origin.strip(),
@@ -275,7 +181,6 @@ if user_input:
     if is_greeting_or_planning(user_input):
         assistant_response = greeting_message
     else:
-        # Limit chat history for token safety
         N = 8
         chat_history = st.session_state.messages[-N:]
         messages = [{"role": "system", "content": SYSTEM_PROMPT}] + chat_history
@@ -287,7 +192,6 @@ if user_input:
                 max_tokens=1800
             )
             assistant_response = response.choices[0].message.content
-            assistant_response = post_process_itinerary(assistant_response)
         except Exception as e:
             print("OpenAI API error:", e)
             st.error(f"OpenAI API error: {e}")
@@ -298,38 +202,7 @@ if user_input:
 
 if st.session_state.pending_form_response:
     try:
-        ctx = st.session_state.trip_context or {}
-        destination = ctx.get("destination", "Destination")
-        from_date = ctx.get("from_date", date.today())
-        month = from_date.strftime('%B')
-        currency_type = ctx.get("currency_type", "₹ INR")
-        currency_instruction = (
-            "Please ensure all costs are shown in Indian Rupees (₹, INR)."
-            if currency_type.startswith("₹")
-            else f"Please show all costs in {currency_type}."
-        )
-        user_instructions = (
-            "IMPORTANT:\n"
-            "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
-            "Use the correct day number and real date for each day. "
-            "EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
-            "<emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
-            "- For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
-            "- For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
-            "- For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
-            "- Every major item MUST have a real, working, direct booking/info link.\n"
-            "- Every day MUST include at least one local transportation item with booking/info link and cost, and be included in daily and total costs.\n"
-            "- The return flight MUST appear on the last day, with booking link and cost, and be included in the day and total costs.\n"
-            "- For accommodation, food, and activities, choose and explicitly mention the best options within the user’s budget. If budget is tight, suggest a lower-cost alternative and explain.\n"
-            "Daily total must be the sum of ALL items for that day, including all flights, hotels, food, transport, and activities. "
-            "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
-            "After all days, show cost breakdown as bullet points. "
-            f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
-            "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line.\n"
-            f"{currency_instruction}\nFormat your answer in Markdown."
-        )
         prompt = st.session_state["pending_llm_prompt"]
-        # Only send necessary instructions and prompt for first itinerary generation
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         messages.append({"role": "user", "content": prompt})
         response = client.chat.completions.create(
@@ -339,7 +212,6 @@ if st.session_state.pending_form_response:
             max_tokens=1800
         )
         assistant_response = response.choices[0].message.content
-        assistant_response = post_process_itinerary(assistant_response)
     except Exception as e:
         print("OpenAI API error:", e)
         st.error(f"OpenAI API error: {e}")
