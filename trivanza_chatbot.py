@@ -380,7 +380,7 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
             )
             # Clear chat history so old itinerary vanishes
-           st.session_state.messages = []
+            st.session_state.messages = []
             # Set form to minimize after submit
             st.session_state.trip_form_expanded = False
 
