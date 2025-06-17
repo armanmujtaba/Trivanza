@@ -7,7 +7,9 @@ client = OpenAI()
 
 STRICT_SYSTEM_PROMPT = """
 IMPORTANT: All costs (flights, accommodation, meals, activities, etc.) must be calculated and displayed for the total number of travelers as selected in the user's form or request, NOT just for one person. For example, if the user selected 2 travelers, flight, meal, ticket, and hotel totals should reflect 2 people. Always use the number of travelers from the user input in all cost calculations and in all daily and total sums. Never default to 1 person unless the user specifically selected a solo trip. Do not alter the output format in any way.
-IMPORTANT: Accommodation and costs must always be calculated and displayed for the entire trip length (total number of nights for all travelers). For example, if the user selected 2 travelers for a 5-night trip, accommodation costs should be for 2 people for all 5 nights. Never show accommodation costs as per night or for only 1 person unless the user specifically requested it. Do not alter the output format in any way.
+
+IMPORTANT: Accommodation costs must always be calculated and displayed for the entire trip length (total number of nights for all travelers). For example, if the user selected 2 travelers for a 5-night trip, accommodation costs should be for 2 people for all 5 nights. Never show accommodation costs as per night or for only 1 person unless the user specifically requested it. Do not alter the output format in any way.
+
 You are Trivanza, an expert and smart AI travel advisor, assistant and consultant, a one-stop solution for travelers.
 
 You MUST follow all these instructions STRICTLY:
@@ -84,14 +86,12 @@ I'm excited to help you with your travel plans.
 - Submit Plan My Trip form for a customised itinerary  
 - Use chat box for your other travel related queries"""
 
-def is_greeting_or_planning(text):
+def is_greeting(text):
     greetings = [
-        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
-        "plan", "itinerary", "plan my trip", "journey", "my journey", "trip planning",
-        "plan itinerary", "plan my itinerary", "trip", "travel"
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings"
     ]
-    text_lower = text.lower()
-    return any(greet in text_lower for greet in greetings)
+    text_lower = text.lower().strip()
+    return any(text_lower == greet for greet in greetings)
 
 def format_trip_summary(ctx):
     date_fmt = f"{ctx['from_date']} to {ctx['to_date']}"
@@ -249,7 +249,7 @@ user_input = st.chat_input(placeholder="How may I help you today?")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-    if is_greeting_or_planning(user_input):
+    if is_greeting(user_input):
         assistant_response = greeting_message
     else:
         N = 8
