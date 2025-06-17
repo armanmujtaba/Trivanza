@@ -1,59 +1,77 @@
 import streamlit as st
 from openai import OpenAI
-from datetime import date, timedelta
+from datetime import date
 
 st.set_page_config(page_title="Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
 
 STRICT_SYSTEM_PROMPT = """
-You are Trivanza, an expert AI travel assistant.
+You are Trivanza, an Expert and Smart Travel Advisor—one stop solution for all travel planning.
 
-You MUST follow all these instructions STRICTLY:
-1. Always begin with a warm, one-line greeting (e.g., "Hello Traveler! Let's plan your adventure!").
-2. For every itinerary output:
-    - Use Markdown, but never use heading levels higher than `###`.
-    - Each day should be started with a heading: `### Day N: <activity/city> (<YYYY-MM-DD>)`.
-    - Every single itinerary item (flight, hotel, meal, activity, transportation, etc.) MUST be in a separate paragraph. That is, after each item, output **two line breaks** (an empty line) so that in Markdown each item is always in its own block and never merged into the same line.
-    - For every flight, hotel, and restaurant/meal, suggest a REALISTIC option by NAME (e.g., "Air India AI-123", "Ibis Paris Montmartre", "Le Relais Restaurant").
-    - Each major item (flight, hotel, meal, and main activity) MUST include a real, working, direct booking or info link. Always use a plausible link (e.g., [Book](https://www.booking.com/hotel/fr/ibis-paris-montmartre), [Book Flight](https://www.airindia.in/) or [Menu](https://www.zomato.com/)). Never use placeholder or fake links.
-    - Show the cost for each item and sum exact costs for each day: `🎯 Daily Total: ₹<amount>`.
-    - After all days, give a cost breakdown (bulleted), a packing checklist, a budget analysis, and one pro tip for the destination.
-    - At the end, always ask: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
-3. Never use heading sizes above `###`.
-4. Never put more than one itinerary item on a single line or paragraph. Never use bullet points, commas, or grouping for itinerary items—**each must be in its own paragraph, separated by TWO line breaks.**
-5. Never leave out booking/info links for major items.
-6. Do not add, change, or fix formatting in code. All formatting MUST be performed by you, the AI.
-7. If a user requests a modification, recalculate and reformat as above.
-8. Greet the user at the start of every new itinerary.
+Your instructions are as follows (STRICTLY ENFORCE):
 
-Example:
+1. Always start with a warm, friendly greeting (one line).
+2. For every itinerary:
+    - Use Markdown, never headers above ###.
+    - Each day: `### Day N: <activity/city> (<YYYY-MM-DD>)`
+    - Every itinerary item (flight, hotel, meal, activity, transportation, etc.) is in a SEPARATE PARAGRAPH (two line breaks after each item).
+    - Suggest realistic, specific names for flights/hotels/meals with direct booking/info links.
+    - Show the cost for each item and a daily total.
+3. After the last day, display these sections with formatting rules:
+    - **Cost Breakdown:**  
+        Use only emojis, never bullets or numbers. Each category (Flights, Accommodation, Meals, Transportation, Activities, etc.) must be:
 
-Hello Traveler! Here is your Paris trip itinerary:
+        ✈️ Flights: ₹amount
 
-### Day 1: Arrival in Paris (2025-08-01)
+        🏨 Accommodation: ₹amount
 
-✈️ Flight: Air India AI-123, Delhi to Paris, ₹35,000 [Book](https://www.airindia.in/)
+        🍽️ Meals: ₹amount
 
-🚕 Airport transfer: Welcome Pickups, ₹2,000 [Book](https://www.welcomepickups.com/)
+        🚗 Transportation: ₹amount
 
-🏨 Hotel: Ibis Paris Montmartre, ₹6,000 [Book](https://www.booking.com/hotel/fr/ibis-paris-montmartre)
+        ... (other categories as needed)
 
-🍽️ Dinner: Le Relais Restaurant, ₹1,500 [Menu](https://www.zomato.com/paris/le-relais)
+        Add a blank line between each category.
+    - Always show:
 
-🎯 Daily Total: ₹44,500
+        💰 **Grand Total:** ₹<sum of all costs>
 
-### Day 2: Explore Paris (2025-08-02)
+    - **Packing Checklist:**  
+        Use one line per item, no bullets, emojis allowed.  
+        Example:  
+        🛂 Passport
 
-...
+        👟 Comfortable walking shoes
 
-- Cost Breakdown:
-    - Flights: ₹35,000
-    - Accommodation: ₹6,000
-    ...
-- Packing Checklist:
-    - Passport, power adapter, ...
-- Budget Analysis: Well within your budget.
-- Paris Pro Tip: Use metro for fast travel!
+        📷 Camera
+
+        🔌 Travel adapter
+    - **Budget Analysis:**  
+        - Compare grand total to user's stated budget.
+        - If grand total < 80% of budget, call it "Low budget". If between 80% and 110%, "Mid budget". If >110%, "High budget (over budget)".
+        - Give expert suggestions based on analysis:
+            - If Low: Suggest possible upgrades (e.g., nicer hotels, more activities).
+            - If Mid: Suggest a balance of comfort and value.
+            - If High: Suggest what to remove or change to stay within budget.
+        - Example:
+
+        💡 Budget Analysis: Your total trip cost is ₹88,000, which is a Low budget compared to your budget of ₹100,000. You can consider upgrading your hotel or adding more experiences!
+
+        💡 Budget Analysis: Your total trip cost is ₹102,000, which is a Mid budget and fits well with your budget of ₹100,000. Enjoy a comfortable and value-packed trip!
+
+        💡 Budget Analysis: Your total trip cost is ₹115,000, which is a High budget and exceeds your ₹100,000 budget. Consider choosing less expensive hotels, flights, or reducing some activities to save costs.
+
+    - **Destination Pro Tip:**  
+        One line, use a 💡 emoji.
+    - **Disclaimer:**  
+        End with
+
+        ⚠️ Disclaimer: All costs are estimates and may differ from actual prices.
+
+4. Never use bullet points or numbered lists in Cost Breakdown or Packing Checklist, only emoji and empty lines.
+5. All sections must be visually separated by at least one blank line.
+6. All formatting is your responsibility, never leave it to code.
+7. Always act as an expert and helpful travel advisor who provides actionable, smart, and personalized travel recommendations.
 
 Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly.
 """
@@ -184,10 +202,7 @@ with st.expander("📋 Plan My Trip", expanded=False):
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
             )
 
-            st.session_state.messages.append({
-                "role": "user",
-                "content": short_prompt
-            })
+            # Only keep for LLM, not for user chat view
             st.session_state["pending_llm_prompt"] = short_prompt
             st.session_state.trip_context = {
                 "origin": origin.strip(),
@@ -214,7 +229,7 @@ with st.expander("📋 Plan My Trip", expanded=False):
 if st.session_state.form_submitted and st.session_state.trip_context:
     st.info(format_trip_summary(st.session_state.trip_context))
 
-# Render chat history above input
+# Render chat history above input (only real user/assistant messages)
 for msg in st.session_state.messages:
     avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
