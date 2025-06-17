@@ -163,7 +163,7 @@ def format_trip_summary(ctx):
 
 # Session state setup
 if "trip_form_expanded" not in st.session_state:
-    st.session_state.trip_form_expanded = True
+    st.session_state.trip_form_expanded = False  # Default to minimized
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "form_submitted" not in st.session_state:
@@ -203,6 +203,7 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# The form will stay minimized unless user manually expands it
 with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expanded):
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
