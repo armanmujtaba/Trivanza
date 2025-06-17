@@ -18,7 +18,8 @@ def analyze_sentiment(text):
             max_tokens=100
         )
         return response.choices[0].message.content
-    except Exception:
+    except Exception as e:
+        print("Sentiment analysis error:", e)
         return "Sentiment analysis unavailable."
 
 def detect_and_translate(text, target_language="English"):
@@ -33,7 +34,8 @@ def detect_and_translate(text, target_language="English"):
             max_tokens=120
         )
         return response.choices[0].message.content
-    except Exception:
+    except Exception as e:
+        print("Language detection error:", e)
         return "Language detection unavailable."
 
 def recognize_destination(image_url):
@@ -48,7 +50,8 @@ def recognize_destination(image_url):
             max_tokens=150
         )
         return response.choices[0].message.content
-    except Exception:
+    except Exception as e:
+        print("Destination recognition error:", e)
         return "Image recognition unavailable."
 
 def recommend_destinations(user_history, preferences):
@@ -68,11 +71,11 @@ def recommend_destinations(user_history, preferences):
             max_tokens=200
         )
         return response.choices[0].message.content
-    except Exception:
+    except Exception as e:
+        print("Destination recommendation error:", e)
         return "Recommendations unavailable."
 
 def post_process_itinerary(text):
-    # Clean up Markdown for nice display
     text = re.sub(r'\[(Book|Info|Menu|Tickets|Website|Booking)\s*:\s*(https?://[^\]\s]+)\]', r'[\1](\2)', text)
     text = re.sub(
         r'(?<!\n)([✈️🏨🍽️🍜🍹🚌🚕🚶‍♀️🛍️🎯🎉🎭🕌🍴🍣🏖️🚗🚖🚶‍♂️🚴‍♂️🌆•\-])',
@@ -105,8 +108,6 @@ if "user_history" not in st.session_state:
     st.session_state.user_history = []
 if "pending_llm_prompt" not in st.session_state:
     st.session_state.pending_llm_prompt = None
-if "last_itinerary_generated" not in st.session_state:
-    st.session_state.last_itinerary_generated = False
 
 st.markdown("""
 <style>
@@ -153,7 +154,7 @@ Whenever you generate an itinerary, after presenting it, ALWAYS ask the user: "W
 If a user asks something unrelated to travel, you may politely explain your expertise is travel, but do not repeat fallback messages.
 """
 
-with st.expander("📋 Plan My Trip", expanded=False):  # Default minimized
+with st.expander("📋 Plan My Trip", expanded=False):
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
 
@@ -273,12 +274,11 @@ if user_input:
 
     if is_greeting_or_planning(user_input):
         assistant_response = greeting_message
-        st.session_state.last_itinerary_generated = False
     else:
-        # Let the LLM handle all context and intent
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        for msg in st.session_state.messages:
-            messages.append(msg)
+        # Limit chat history for token safety
+        N = 8
+        chat_history = st.session_state.messages[-N:]
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}] + chat_history
         try:
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
@@ -288,15 +288,10 @@ if user_input:
             )
             assistant_response = response.choices[0].message.content
             assistant_response = post_process_itinerary(assistant_response)
-
-            # If the assistant just generated an itinerary, set flag so it won't ask again on next message
-            if "Packing Checklist" in assistant_response or "## Day" in assistant_response:
-                st.session_state.last_itinerary_generated = True
-            else:
-                st.session_state.last_itinerary_generated = False
-
-        except Exception:
-            assistant_response = "Sorry, I'm unable to respond at the moment. Try again later."
+        except Exception as e:
+            print("OpenAI API error:", e)
+            st.error(f"OpenAI API error: {e}")
+            assistant_response = "I'm unable to assist with creating itineraries at the moment. Let me know if you need help with anything else."
 
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.rerun()
@@ -333,16 +328,10 @@ if st.session_state.pending_form_response:
             "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line.\n"
             f"{currency_instruction}\nFormat your answer in Markdown."
         )
-        # Add the extended system prompt so LLM will always ask for modification after generating itinerary
+        prompt = st.session_state["pending_llm_prompt"]
+        # Only send necessary instructions and prompt for first itinerary generation
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        # All previous messages for context
-        for msg in st.session_state.messages:
-            messages.append(msg)
-        # Add the actual itinerary planning prompt
-        messages.append({
-            "role": "user",
-            "content": st.session_state["pending_llm_prompt"]
-        })
+        messages.append({"role": "user", "content": prompt})
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",
             messages=messages,
@@ -351,10 +340,10 @@ if st.session_state.pending_form_response:
         )
         assistant_response = response.choices[0].message.content
         assistant_response = post_process_itinerary(assistant_response)
-        st.session_state.last_itinerary_generated = True
-    except Exception:
-        assistant_response = "Sorry, I'm unable to generate your itinerary right now."
-        st.session_state.last_itinerary_generated = False
+    except Exception as e:
+        print("OpenAI API error:", e)
+        st.error(f"OpenAI API error: {e}")
+        assistant_response = "I'm unable to assist with creating itineraries at the moment. Let me know if you need help with anything else."
 
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.session_state.pending_form_response = False
