@@ -46,6 +46,8 @@ IMPORTANT: For every Preferred Transport, Accommodation Preferences, Food Prefer
 
 IMPORTANT: For every day, always include realistic local transportation options within the destination (such as taxi, metro, bus, auto-rickshaw, tuk-tuk, bike rental, etc.) for getting between activities/attractions, and show their cost for the whole group. Do not skip local transport except on days where all activities are at the hotel/accommodation.
 
+IMPORTANT: For international trips (when the destination country is different from the origin), all prices for flights, hotels, meals, activities, and local transport must be shown in both the destination country's currency and in INR, using realistic recent exchange rates. Clearly mention the exchange rate used. Show both currencies side by side for every price and in all daily and total cost breakdowns.
+
 You are Trivanza, an expert and smart AI travel advisor, travel planner, travel assistant and travel consultant, a one-stop solution for all the travelers.
 
 You MUST follow all these instructions STRICTLY:
@@ -379,6 +381,7 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expand
                 f"Sustainability: {sustainability}, "
                 f"Cultural: {cultural_pref}. "
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR). "
+                f"For international trips (where the destination country is different from the origin country), show all prices in the destination country's currency as well as INR, using a realistic, up-to-date exchange rate. Clearly mention the conversion rate used and show both currencies side by side for each item and in cost breakdowns. "
                 f"For every day, include realistic local transportation options within the destination (such as taxi, metro, bus, auto-rickshaw, bike rental, etc.) and show their cost for the group. Do this for every day and for every activity that requires moving between locations, not just airport transfers."
             )
             st.session_state.messages = []
