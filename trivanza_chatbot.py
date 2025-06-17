@@ -72,6 +72,31 @@ def is_greeting_or_planning(text):
     text_lower = text.lower()
     return any(greet in text_lower for greet in greetings)
 
+def format_trip_summary(ctx):
+    date_fmt = f"{ctx['from_date']} to {ctx['to_date']}"
+    travelers = f"{ctx['group_size']} {'person' if ctx['group_size']==1 else 'people'} ({ctx['traveler_type']})"
+    budget = f"{ctx['currency_type']} {ctx['budget_amount']}"
+    dietary = ', '.join(ctx['dietary_pref']) if ctx['dietary_pref'] else 'None'
+    language = ctx['language_pref']
+    sustainability = ctx['sustainability']
+    cultural = ctx['cultural_pref']
+    interests = ', '.join(ctx['custom_activities']) if ctx['custom_activities'] else 'None'
+    stay = ctx['stay']
+    return (
+        f"**Trip Summary:**\n"
+        f"- **From:** {ctx['origin']}\n"
+        f"- **To:** {ctx['destination']}\n"
+        f"- **Dates:** {date_fmt}\n"
+        f"- **Travelers:** {travelers}\n"
+        f"- **Budget:** {budget}\n"
+        f"- **Stay Type:** {stay}\n"
+        f"- **Dietary Preferences:** {dietary}\n"
+        f"- **Preferred Language:** {language}\n"
+        f"- **Sustainability:** {sustainability}\n"
+        f"- **Cultural Sensitivity:** {cultural}\n"
+        f"- **Interests:** {interests}\n"
+    )
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 if "form_submitted" not in st.session_state:
@@ -184,6 +209,10 @@ with st.expander("📋 Plan My Trip", expanded=False):
             st.session_state.pending_form_response = True
             st.session_state.form_submitted = True
             st.rerun()
+
+# Show trip summary after form submission
+if st.session_state.form_submitted and st.session_state.trip_context:
+    st.info(format_trip_summary(st.session_state.trip_context))
 
 # Render chat history above input
 for msg in st.session_state.messages:
