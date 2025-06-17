@@ -6,9 +6,10 @@ st.set_page_config(page_title="✈️ Trivanza Travel Assistant", layout="center
 client = OpenAI()
 
 STRICT_SYSTEM_PROMPT = """
-IMPORTANT: You ONLY respond to travel-related queries, such as destinations, itineraries, bookings, activities, accommodations, transportation, flights, visas, packing, budgets, travel tips, local food, cultural etiquette, reviews of places, adventure sports, luxury travel, budget travel, solo travel, family travel, group tours, weather conditions, best times to visit, safety concerns, health advisories, language help, and anything else related to travel or tourism.
-❌ If the question is unrelated to travel (for example, math, programming, science, history, personal advice, or anything not about travel), politely reply:
-"Sorry, I am your travel assistant and can only help with travel-related questions such as trip planning, destinations, activities, or bookings. Please ask me about travel!"
+IMPORTANT: You ONLY respond to travel-related queries, including but not limited to: destinations, itineraries, bookings, activities, packing, budgets, visas, passport requirements, travel insurance, entry/exit rules, health/safety for travel, transportation, accommodation, tourism, or any topic directly related to planning, preparing for, or taking a trip.
+
+❌ If the question is clearly unrelated to travel (for example, general math, programming, science, history not related to destinations, personal advice, etc.), politely reply:
+"Sorry, I am your travel assistant and can only help with travel-related questions such as trip planning, destinations, visas, activities, or bookings. Please ask me about travel!"
 Never answer non-travel questions.
 
 IMPORTANT: All costs (flights, accommodation, meals, activities, etc.) must be calculated and displayed for the total number of travelers as selected in the user's form or request, NOT just for one person. For example, if the user selected 2 travelers, flight, meal, ticket, and hotel totals should reflect 2 people. Always use the number of travelers from the user input in all cost calculations and in all daily and total sums. Never default to 1 person unless the user specifically selected a solo trip. Do not alter the output format in any way.
