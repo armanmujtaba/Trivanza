@@ -56,11 +56,9 @@ Cost Breakdown:
 
     💰 Grand Total: ₹<sum of all categories>
 
-Packing Checklist:
-    🎒 Packing Checklist: Passport, comfortable walking shoes, camera, travel adapter.
+🎒 Packing Checklist: Passport, comfortable walking shoes, camera, travel adapter.
 
-Budget Analysis:
-    💡 Budget Analysis: Calculate if the total cost is well within, just within, or over the user's budget.
+💡 Budget Analysis: Calculate if the total cost is well within, just within, or over the user's budget.
     Classify the budget as Low, Mid, or High for this destination and trip length.
     If over budget, suggest specific expert ways to save (cheaper hotels, city passes, etc.).
     If well within, suggest possible luxury upgrades or experiences.
@@ -69,11 +67,9 @@ Budget Analysis:
     Example:
     💡 Budget Analysis: Just within your ₹100,000 budget for 5 days in Switzerland. This is a mid-range budget. For more savings, consider using Swiss Travel Pass for transportation and choosing 3-star hotels. For a luxury upgrade, book gourmet dinners or stay in a boutique hotel.
 
-Pro Tip:
-    🌟 Switzerland Pro Tip: Don't miss trying Swiss chocolate and cheese fondue!
+🌟 Switzerland Pro Tip: Don't miss trying Swiss chocolate and cheese fondue!
 
-Disclaimer:
-    ⚠️ *Disclaimer: All estimated costs are for guidance only and may differ from actual expenses. Please check with providers for up-to-date prices.*
+⚠️ *Disclaimer: All estimated costs are for guidance only and may differ from actual expenses. Please check with providers for up-to-date prices.*
 
     - DO NOT use bullet points in these sections—use emojis and line breaks as shown.
     - DO NOT modify the rest of the format; only adjust these sections.
