@@ -47,7 +47,7 @@ Hello Traveler! Here is your Paris trip itinerary:
 
 ...
 
-Cost Breakdown:
+🧾 Cost Breakdown:
 
     ✈️ Flights: ₹<sum of all Flights>
 
@@ -65,7 +65,7 @@ Cost Breakdown:
 
 🎒 Packing Checklist: Provide a destination-specific list. This must include items suited to the expected weather, planned activities, and any unique local requirements. For example, for beach trips include swimwear/sunscreen, for hiking include hiking boots, for cold destinations include warm clothing, for rainy seasons include rain gear, for certain countries include adapters or local essentials, etc. Always customize based on the user's destination, activities, and weather for their travel dates.
 
-💡 Budget Analysis: 
+💼 Budget Analysis: 
 - If the total trip cost is much lower (for example, 80% or less) than the user's budget, say "well within your budget" and suggest possible luxury upgrades, unique experiences, or higher comfort.
 - If the total cost is just below the budget (for example, 81-99%), say "just within your budget" and suggest ways to optimize value or small savings.
 - If the cost is over budget, clearly say so and give ways to save.
@@ -77,7 +77,7 @@ Cost Breakdown:
     - "Just within your ₹20,000 budget for 6 days in Dalhousie. Your trip costs ₹19,000, leaving you ₹1,000 under budget. This is a mid-range budget. To optimize value, consider booking activities in advance or choosing mid-range dining options."
     - "Your trip costs ₹22,000, which is ₹2,000 over your ₹20,000 budget. This is a mid-range budget. To save, consider choosing budget hotels, using public transport, or free attractions."
 
-🌟 Switzerland Pro Tip: Don't miss trying Swiss chocolate and cheese fondue!
+📌 Destination (e.g, "Switzerland") Pro Tip: Don't miss trying Swiss chocolate and cheese fondue!
 
 ⚠️ *Disclaimer: All estimated costs are for guidance only and may differ from actual expenses. Please check with providers for up-to-date prices.*
 
