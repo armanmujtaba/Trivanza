@@ -103,6 +103,7 @@ def format_trip_summary(ctx):
     cultural = ctx['cultural_pref']
     interests = ', '.join(ctx['custom_activities']) if ctx['custom_activities'] else 'None'
     stay = ctx['stay']
+    mode = ctx.get("mode_of_transport", "Any")
     return (
         f"**Trip Summary:**\n"
         f"- **From:** {ctx['origin']}\n"
@@ -111,6 +112,7 @@ def format_trip_summary(ctx):
         f"- **Travelers:** {travelers}\n"
         f"- **Budget:** {budget}\n"
         f"- **Stay Type:** {stay}\n"
+        f"- **Preferred Transport:** {mode}\n"
         f"- **Dietary Preferences:** {dietary}\n"
         f"- **Preferred Language:** {language}\n"
         f"- **Sustainability:** {sustainability}\n"
@@ -171,6 +173,14 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
         with col2:
             origin = st.text_input("🌍 Origin", placeholder="e.g., Delhi", key="origin")
             destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="destination")
+
+        # Mode of Transport selectbox
+        mode_of_transport = st.selectbox(
+            "🚌 Preferred Mode of Transport",
+            ["Any", "Flight", "Train", "Bus", "Car"],
+            key="mode_of_transport"
+        )
+
         col3, col4 = st.columns(2)
         with col3:
             from_date = st.date_input("📅 From Date", min_value=date.today(), key="from_date")
@@ -201,6 +211,7 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
             st.success("✅ Generating your personalized itinerary...")
             short_prompt = (
                 f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. "
+                f"Preferred mode of transport: {mode_of_transport}. "
                 f"Budget: {currency_type} {budget_amount}. "
                 f"Dietary: {', '.join(dietary_pref) if dietary_pref else 'None'}, Language: {language_pref}, Sustainability: {sustainability}, "
                 f"Cultural: {cultural_pref}, Interests: {', '.join(custom_activities) if custom_activities else 'None'}. Stay: {stay}. "
@@ -226,7 +237,8 @@ with st.expander("📋 Plan My Trip", expanded=st.session_state.get("trip_form_e
                 "custom_activities": custom_activities,
                 "budget_amount": budget_amount,
                 "currency_type": currency_type,
-                "stay": stay
+                "stay": stay,
+                "mode_of_transport": mode_of_transport
             }
             st.session_state.user_history.append(st.session_state.trip_context)
             st.session_state.pending_form_response = True
