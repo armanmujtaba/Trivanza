@@ -1,6 +1,6 @@
 import streamlit as st
 from openai import OpenAI
-from datetime import date, timedelta
+from datetime import date
 
 st.set_page_config(page_title="✈️ Trivanza Travel Assistant", layout="centered")
 client = OpenAI()
@@ -17,14 +17,7 @@ You MUST follow all these instructions STRICTLY:
     - For every flight, hotel, and restaurant/meal, suggest a REALISTIC option by NAME (e.g., "Air India AI-123", "Ibis Paris Montmartre", "Le Relais Restaurant").
     - Each major item (flight, hotel, meal, and main activity) MUST include a real, working, direct booking or info link. Always use a plausible link (e.g., [Book](https://www.booking.com/hotel/fr/ibis-paris-montmartre), [Book Flight](https://www.airindia.in/) or [Menu](https://www.zomato.com/)). Never use placeholder or fake links.
     - Show the cost for each item and sum exact costs for each day: `🎯 Daily Total: ₹<amount>`.
-    - After all days, give a cost breakdown (bulleted), a packing checklist, a budget analysis, and one pro tip for the destination.
-    - At the end, always ask: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
-3. Never use heading sizes above `###`.
-4. Never put more than one itinerary item on a single line or paragraph. Never use bullet points, commas, or grouping for itinerary items—**each must be in its own paragraph, separated by TWO line breaks.**
-5. Never leave out booking/info links for major items.
-6. Do not add, change, or fix formatting in code. All formatting MUST be performed by you, the AI.
-7. If a user requests a modification, recalculate and reformat as above.
-8. Greet the user at the start of every new itinerary.
+    - After all days, present the following sections (in this order, with format/spacing as shown):
 
 Example:
 
@@ -47,51 +40,41 @@ Hello Traveler! Here is your Paris trip itinerary:
 ...
 
 Cost Breakdown:
-    - Use emojis instead of bullet points for each category, and put each category on its own line with an empty line between items, e.g.:
 
-        ✈️ Flights: ₹XX,XXX
+    ✈️ Flights: ₹XX,XXX
 
-        🏨 Accommodation: ₹XX,XXX
+    🏨 Accommodation: ₹XX,XXX
 
-        🍽️ Meals: ₹XX,XXX
+    🍽️ Meals: ₹XX,XXX
 
-        🚗 Transportation: ₹XX,XXX
+    🚗 Transportation: ₹XX,XXX
 
-    - After listing all, add a line for:
-
-        💰 **Grand Total:** ₹<sum of all categories>
-
-    - Make sure the total matches the sum of all items.
+    💰 **Grand Total:** ₹<sum of all categories>
 
 Packing Checklist:
-    - Use the 🎒 emoji at the start. Example:
-        🎒 Packing Checklist: Passport, comfortable walking shoes, camera, travel adapter.
+    🎒 Packing Checklist: Passport, comfortable walking shoes, camera, travel adapter.
 
 Budget Analysis:
-    - Calculate if the total cost is well within, just within, or over the user's budget.
-    - Classify the budget as Low, Mid, or High based on destination and trip length.
-    - If over budget, suggest two or more specific expert ways to save (cheaper hotels, city passes, etc.).
-    - If well within, suggest possible luxury upgrades or experiences.
-    - If just within, suggest ways to optimize value.
-    - Always state: "This is a low/mid/high budget for a <n>-day trip to <destination>."
-    - Example output:
-        💡 Budget Analysis: Just within your ₹100,000 budget for 5 days in Switzerland. This is a mid-range budget. For more savings, consider using Swiss Travel Pass for transportation and choosing 3-star hotels. For a luxury upgrade, book gourmet dinners or stay in a boutique hotel.
+    💡 Budget Analysis: Calculate if the total cost is well within, just within, or over the user's budget.
+    Classify the budget as Low, Mid, or High for this destination and trip length.
+    If over budget, suggest specific expert ways to save (cheaper hotels, city passes, etc.).
+    If well within, suggest possible luxury upgrades or experiences.
+    If just within, suggest ways to optimize value.
+    Always state: "This is a low/mid/high budget for a <n>-day trip to <destination>."
+    Example:
+    💡 Budget Analysis: Just within your ₹100,000 budget for 5 days in Switzerland. This is a mid-range budget. For more savings, consider using Swiss Travel Pass for transportation and choosing 3-star hotels. For a luxury upgrade, book gourmet dinners or stay in a boutique hotel.
 
 Pro Tip:
-    - Use a 🌟 emoji. Example:
-        🌟 Switzerland Pro Tip: Don't miss trying Swiss chocolate and cheese fondue!
+    🌟 Switzerland Pro Tip: Don't miss trying Swiss chocolate and cheese fondue!
 
 Disclaimer:
-    - Always add at the end:
-        ⚠️ *Disclaimer: All estimated costs are for guidance only and may differ from actual expenses. Please check with providers for up-to-date prices.*
+    ⚠️ *Disclaimer: All estimated costs are for guidance only and may differ from actual expenses. Please check with providers for up-to-date prices.*
 
-Remember: 
-- DO NOT use bullet points in these sections—use emojis and line breaks as shown.
-- DO NOT modify the rest of the format; only adjust these sections.
-- Always sum up the costs accurately and show the Grand Total after cost breakdown.
-- Make your budget analysis and suggestions as an expert and smart travel advisor.
-
-Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly.
+    - DO NOT use bullet points in these sections—use emojis and line breaks as shown.
+    - DO NOT modify the rest of the format; only adjust these sections.
+    - Always sum up the costs accurately and show the Grand Total after cost breakdown.
+    - Make your budget analysis and suggestions as an expert and smart travel advisor.
+    - At the end, always ask: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
 """
 
 greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
@@ -220,10 +203,7 @@ with st.expander("📋 Plan My Trip", expanded=False):
                 f"Please ensure all costs are shown in Indian Rupees (₹, INR)."
             )
 
-            st.session_state.messages.append({
-                "role": "user",
-                "content": short_prompt
-            })
+            # Do not append short_prompt to messages!
             st.session_state["pending_llm_prompt"] = short_prompt
             st.session_state.trip_context = {
                 "origin": origin.strip(),
@@ -246,11 +226,9 @@ with st.expander("📋 Plan My Trip", expanded=False):
             st.session_state.form_submitted = True
             st.rerun()
 
-# Show trip summary after form submission
 if st.session_state.form_submitted and st.session_state.trip_context:
     st.info(format_trip_summary(st.session_state.trip_context))
 
-# Render chat history above input
 for msg in st.session_state.messages:
     avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
     with st.chat_message(msg["role"], avatar=avatar):
