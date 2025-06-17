@@ -156,6 +156,11 @@ def is_greeting_or_planning(text):
     text_lower = text.lower()
     return any(greet in text_lower for greet in greetings)
 
+SYSTEM_PROMPT = """You are Trivanza, a smart travel assistant.
+Only answer questions that are related to travel, trip planning, destinations, activities, flights, visas, tourism, cultures, food, transport, or anything a traveler may want to know.
+If a user asks something unrelated to travel, reply: "This chat is strictly about Travel and TRIVANZA’s features. Please ask Travel-related questions."
+"""
+
 with st.expander("📋 Plan My Trip", expanded=False):  # Default minimized
     with st.form("travel_form", clear_on_submit=False):
         st.markdown("### 🧳 Let's plan your perfect trip!")
@@ -273,64 +278,15 @@ user_input = st.chat_input(placeholder="How may I help you today?")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-    text_lower = user_input.lower()
-    words = re.findall(r'\w+', text_lower)
-    travel_keywords = [
-        "travel", "trip", "holiday", "vacation", "hotel", "flight",
-        "visa", "sightseeing", "tour", "activity", "adventure", "food", "restaurant",
-        "booking", "accommodation", "stay", "passport", "insurance", "luggage", "bag",
-        "currency", "weather", "destination", "explore", "plan", "train", "bus", "car",
-        "cruise", "resort", "spa", "wellness", "culture", "museum", "monument", "beach",
-        "mountain", "trek", "local", "guide", "airport", "transfer", "check-in", "checkout",
-        "packing", "budget", "cost", "price", "cheap", "luxury", "hostel", "airbnb", "shopping"
-    ]
-    stemmed_keywords = set(ps.stem(k) for k in travel_keywords)
-    is_travel_related = any(ps.stem(word) in stemmed_keywords for word in words)
 
     if is_greeting_or_planning(user_input):
         assistant_response = greeting_message
-    elif not is_travel_related:
-        assistant_response = fallback_message
     else:
+        # Let the LLM judge travel-relatedness
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        for msg in st.session_state.messages:
+            messages.append(msg)
         try:
-            # Only add real user input, do not send formatting/currency instructions as a user message
-            messages = st.session_state.messages.copy()
-            # Insert detailed instructions as a system prompt
-            trip_ctx = st.session_state.trip_context or {}
-            destination = trip_ctx.get("destination", "Destination")
-            from_date = trip_ctx.get("from_date", date.today())
-            month = from_date.strftime('%B')
-            currency_type = trip_ctx.get("currency_type", "₹ INR")
-            currency_instruction = (
-                "Please ensure all costs are shown in Indian Rupees (₹, INR)."
-                if currency_type.startswith("₹")
-                else f"Please show all costs in {currency_type}."
-            )
-            user_instructions = (
-                "IMPORTANT:\n"
-                "For each day, use a Markdown heading: ## Day N: <activity/city> (<YYYY-MM-DD>) with the actual date for that day. "
-                "Use the correct day number and real date for each day. "
-                "EVERY itinerary item (flight, return flight, transfer, hotel, meal, activity, transportation, local transport, etc.) must be on its own SEPARATE line, and must include:\n"
-                "<emoji> <label>: <details>, ₹<cost> per person [Book](https://...)\n"
-                "- For every flight, state the airline name, route, price, and a real booking link (e.g. [Book](https://www.vietnamairlines.com/)).\n"
-                "- For every hotel, state the hotel name, price, and a real booking link (e.g. [Book](https://www.booking.com/)).\n"
-                "- For every restaurant, state the restaurant name, meal type, price, and a real info or reservation link (e.g. [Zomato](https://www.zomato.com/)).\n"
-                "- Every major item MUST have a real, working, direct booking/info link.\n"
-                "- Every day MUST include at least one local transportation item with booking/info link and cost, and be included in daily and total costs.\n"
-                "- The return flight MUST appear on the last day, with booking link and cost, and be included in the day and total costs.\n"
-                "- For accommodation, food, and activities, choose and explicitly mention the best options within the user’s budget. If budget is tight, suggest a lower-cost alternative and explain.\n"
-                "Daily total must be the sum of ALL items for that day, including all flights, hotels, food, transport, and activities. "
-                "End every day with: 🎯 Daily Total: ₹<per person>/<total for all> on its own line. "
-                "After all days, show cost breakdown as bullet points. "
-                f"Add a Packing Checklist for {destination} in {month}, Budget Analysis, and a {destination} Pro Tip. "
-                "Output must be in Markdown, with each heading, bullet, and cost on its own line. NEVER combine multiple itinerary items on one line.\n"
-                f"{currency_instruction}\nFormat your answer in Markdown."
-            )
-            messages.insert(0, {"role": "system", "content": user_instructions})
-            messages.append({
-                "role": "user",
-                "content": user_input
-            })
             response = client.chat.completions.create(
                 model="gpt-3.5-turbo",
                 messages=messages,
