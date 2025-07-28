@@ -135,19 +135,6 @@ def get_location_component():
         </script>
         """, height=0)
 
-
-@st.cache_data(ttl=3600) # Cache the location for an hour
-def get_location_from_ip():
-    """Fetches approximate location from the user's public IP address."""
-    try:
-        response = requests.get("http://ip-api.com/json/")
-        data = response.json()
-        city = data.get("city", "Unknown")
-        country = data.get("country", "Unknown")
-        return f"{city}, {country} (IP-based)"
-    except Exception:
-        return "Not Detected"
-
 def build_system_prompt():
     """Builds the system prompt with current date and location information."""
     today_str = date.today().strftime("%A, %B %d, %Y")
@@ -198,13 +185,10 @@ def initialize_app():
     st.session_state.current_location = "Detecting..."
     gps_result = get_location_component()
     
-    if gps_result and isinstance(gps_result, dict):
-        if gps_result.get("status") == "GPS_SUCCESS":
-            st.session_state.current_location = gps_result.get("location")
-        else: # GPS failed or not supported
-            st.session_state.current_location = get_location_from_ip()
-    else: # Fallback if component fails to return a dict
-        st.session_state.current_location = get_location_from_ip()
+    if gps_result and isinstance(gps_result, dict) and gps_result.get("status") == "GPS_SUCCESS":
+        st.session_state.current_location = gps_result.get("location")
+    else: # GPS failed, not supported, or component failed
+        st.session_state.current_location = "Not Detected"
 
     # Initialize other state variables
     st.session_state.trip_form_expanded = False
@@ -292,7 +276,7 @@ def main_app():
     # Show initial greeting message if no other messages exist
     if not st.session_state.messages:
         loc = st.session_state.get("current_location", "Detecting...")
-        if loc in ["Detecting...", "Not Detected", "Unknown, Unknown (IP-based)"]:
+        if loc in ["Detecting...", "Not Detected"]:
             greeting_message = """
     Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
 
