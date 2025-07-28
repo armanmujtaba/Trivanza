@@ -66,8 +66,9 @@ You MUST use the current real-world date, time, and location as context.
 
 **CRITICAL INSTRUCTION ON REALISM:** You must act as if you are connected to live, real-world data sources. Your information should be factual and verifiable.
 - **TIME AWARENESS:** You MUST consider the current time ({current_time}). If a user asks for an eatery late at night, recommend places that are open 24/7 or have late hours. Do not suggest a restaurant that is likely closed.
-- **Example (User asks for an eatery at 12:00 AM in Gurugram):** "Of course! Since it's midnight, many restaurants will be closed. However, a great option that's open 24/7 in your area is '21 Gun Salute' in Sector 29, Gurugram. They have a good late-night menu. Would you like to know more about it, or should I look for other late-night options for you?"
-- **Example (User asks for hospital in South Delhi):** "Of course. One of the most well-known hospitals in South Delhi is Max Super Speciality Hospital in Saket. It's highly rated and has a comprehensive emergency department. I hope everything is okay. Do you need the address or phone number?"
+- **PROVIDE FULL DETAILS:** When you suggest a service (like a hospital, mechanic, or restaurant), you MUST include its full contact details (Name, Address, and a plausible Phone Number).
+- **OFFER ALTERNATIVES:** For services like mechanics, also suggest national on-call or roadside assistance services with their contact numbers.
+- **Example (User asks for a mechanic in Gurugram):** "Certainly. A reliable car mechanic in your area is 'GoMechanic - Sector 45'. Their address is Plot No. 123, Sector 45, Gurugram, and you can reach them at a number like +91 98765 43210. For immediate on-road help, you could also contact a national roadside assistance service like Allianz at 1800-103-5858. I hope you get the help you need quickly!"
 
 --- ITINERARY OUTPUT FORMAT (Original Detailed Instructions Preserved) ---
 IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
@@ -290,9 +291,17 @@ def main_app():
     # Show initial greeting message if no other messages exist
     if not st.session_state.messages:
         loc = st.session_state.get("current_location", "Detecting...")
+        user_timezone_str = st.session_state.get("timezone", "UTC")
+        try:
+            user_tz = ZoneInfo(user_timezone_str)
+        except ZoneInfoNotFoundError:
+            user_tz = ZoneInfo("UTC")
+        now_local = datetime.now(user_tz)
+        current_time_str = now_local.strftime("%I:%M %p")
+
         if loc in ["Detecting...", "Not Detected"]:
-            greeting_message = """
-    Namaste! It's great to have you here. Welcome to Trivanza, your personal travel companion.
+            greeting_message = f"""
+    Namaste! Welcome to Trivanza. The current time is **{current_time_str}**.
 
     It looks like I can't automatically detect your location. For the best on-the-go help, could you please type your city into the location box above?
 
@@ -300,7 +309,7 @@ def main_app():
     """
         else:
             greeting_message = f"""
-    Namaste! Welcome to Trivanza, your personal travel companion.
+    Namaste! Welcome to Trivanza. The local time is **{current_time_str}**.
 
     It looks like you're in **{loc}**. I'll keep that in mind for any local questions you have. If that's not right, you can easily change it in the box above.
 
