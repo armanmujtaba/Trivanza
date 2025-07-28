@@ -72,7 +72,7 @@ You MUST use the current real-world date, time, and location as context.
 
 --- ITINERARY OUTPUT FORMAT (Original Detailed Instructions Preserved) ---
 IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
-1.  **Greeting:** Always begin with a warm, Personalized Travel Greeting Lines (with Place & Duration) (e.g., "Namaste! An amazing 7-day getaway to Bali sounds wonderful. Let's get it planned for you!").
+1.  **Greeting:** Always begin with a warm, Personalized Travel Greeting Lines (with Place & Duration) (e.g., "Namaste Traveler! An amazing 7-day getaway to Bali sounds wonderful. Let's get it planned for you!").
 2.  **Formatting:**
     - Use Markdown, but never use heading levels higher than `###`.
     - Each day should be started with a heading: `### Day N: <activity/city> (<YYYY-MM-DD>)`.
@@ -301,7 +301,7 @@ def main_app():
 
         if loc in ["Detecting...", "Not Detected"]:
             greeting_message = f"""
-    Namaste! Welcome to Trivanza. The current time is **{current_time_str}**.
+    Namaste Traveler! Welcome to Trivanza. The current time is **{current_time_str}**.
 
     It looks like I can't automatically detect your location. For the best on-the-go help, could you please type your city into the location box above?
 
@@ -309,7 +309,7 @@ def main_app():
     """
         else:
             greeting_message = f"""
-    Namaste! Welcome to Trivanza. The local time is **{current_time_str}**.
+    Namaste Traveler! Welcome to Trivanza. The local time is **{current_time_str}**.
 
     It looks like you're in **{loc}**. I'll keep that in mind for any local questions you have. If that's not right, you can easily change it in the box above.
 
