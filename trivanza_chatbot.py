@@ -142,7 +142,7 @@ location_component = components.html("""
         sendLocation('GPS_NOT_SUPPORTED');
     }
     </script>
-    """, height=0, key="gps_component")
+    """, height=0)
 
 
 @st.cache_data(ttl=3600) # Cache the location for an hour
