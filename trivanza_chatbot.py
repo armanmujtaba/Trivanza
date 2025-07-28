@@ -100,10 +100,13 @@ IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
 location_component = components.html("""
     <script>
     const sendLocation = (loc) => {
-        window.parent.postMessage({
-            type: 'streamlit:setComponentValue',
-            value: loc
-        }, '*');
+        // Check if Streamlit is ready to receive messages
+        if (window.parent) {
+            window.parent.postMessage({
+                type: 'streamlit:setComponentValue',
+                value: loc
+            }, '*');
+        }
     };
 
     const options = {
@@ -132,9 +135,14 @@ location_component = components.html("""
         sendLocation('GPS_FAILED');
     }
 
-    navigator.geolocation.getCurrentPosition(success, error, options);
+    // Ensure the browser supports geolocation
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(success, error, options);
+    } else {
+        sendLocation('GPS_NOT_SUPPORTED');
+    }
     </script>
-    """, height=0)
+    """, height=0, key="gps_component")
 
 
 @st.cache_data(ttl=3600) # Cache the location for an hour
@@ -202,14 +210,28 @@ if "trip_context" not in st.session_state:
     st.session_state.trip_context = None
 if "pending_form_response" not in st.session_state:
     st.session_state.pending_form_response = False
-# Initialize current location in session state
-if 'current_location' not in st.session_state:
+
+# This flag ensures we only attempt to auto-detect the location once,
+# allowing the user to manually override it later without it being reset.
+if 'location_detected' not in st.session_state:
+    st.session_state.location_detected = False
     st.session_state.current_location = "Detecting..."
-    if location_component:
-        if location_component != 'GPS_FAILED':
-             st.session_state.current_location = location_component
-        else:
-             st.session_state.current_location = get_location_from_ip()
+
+# Get the value from the JS component.
+gps_value = location_component
+
+# Only run the auto-detection logic if we haven't successfully done it yet.
+if not st.session_state.location_detected:
+    if gps_value and gps_value not in ['GPS_FAILED', 'GPS_NOT_SUPPORTED']:
+        # GPS Success
+        st.session_state.current_location = str(gps_value) # Ensure it's a string
+        st.session_state.location_detected = True
+        st.rerun()
+    elif gps_value in ['GPS_FAILED', 'GPS_NOT_SUPPORTED']:
+        # GPS failed, fallback to IP
+        st.session_state.current_location = get_location_from_ip()
+        st.session_state.location_detected = True
+        st.rerun()
 
 # Custom CSS for UI enhancements
 st.markdown("""
@@ -224,7 +246,8 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# Let user override location if needed
+# Let user override location if needed. The `key` links this widget to
+# st.session_state.current_location.
 st.text_input(
     "📍 Your Current Location (auto-detected)",
     key="current_location",
