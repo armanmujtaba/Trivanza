@@ -2,6 +2,7 @@ import streamlit as st
 from openai import OpenAI
 from datetime import date, datetime, timedelta
 import pandas as pd
+import requests # Added for IP-based geolocation
 
 # Page configuration for the Streamlit app
 st.set_page_config(page_title="✈️ Trivanza - Your AI Travel Assistant", layout="centered")
@@ -52,7 +53,7 @@ You MUST use the current real-world date and location as context.
 - The user's current location is: **{current_location}**. You MUST use this for all on-the-go requests like "nearest hospital". Do NOT ask for their location.
 
 NEVER say "I don't have access to real-time data." You MUST simulate **plausible, realistic information** based on typical data.
-- For a nearby place: "The nearest hospital to your location in Gurugram is Medanta - The Medicity. It's about a 15-minute drive. Should I provide directions?"
+- For a nearby place: "The nearest hospital to your location in Abul Fazal, Delhi is Holy Family Hospital. It's about a 10-minute drive. Should I provide directions?"
 - For flight status: "IndiGo flight 6E-204 from Delhi to Mumbai appears to be on time for its 16:30 departure today."
 
 --- CRITICAL RULE: WHEN TO ANSWER ---
@@ -93,30 +94,28 @@ IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
 """
 
 # --- App State and Helper Functions ---
-# Simulate fetching the user's current location. In a real app, this would
-# come from a GPS API or a location service.
-CURRENT_LOCATION = "Gurugram, Haryana, India"
+
+@st.cache_data(ttl=3600) # Cache the location for an hour
+def get_location_from_ip():
+    """Fetches approximate location from the user's public IP address."""
+    try:
+        response = requests.get("http://ip-api.com/json/")
+        data = response.json()
+        city = data.get("city", "Unknown")
+        country = data.get("country", "Unknown")
+        return f"{city}, {country}"
+    except Exception:
+        return "Not Detected"
 
 def build_system_prompt():
     """Builds the system prompt with current date and location information."""
     today_str = date.today().strftime("%A, %B %d, %Y")
+    # Use the location from the session state
+    current_location = st.session_state.get('current_location', 'Not Set')
     return ENHANCED_SYSTEM_PROMPT_TEMPLATE.format(
         today_str=today_str,
-        current_location=CURRENT_LOCATION
+        current_location=current_location
     )
-
-# Build the final system prompt to be used in the API call
-FINAL_SYSTEM_PROMPT = build_system_prompt()
-
-# Initial greeting message for the chat
-greeting_message = f"""
-Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
-
-I see you're currently in **{CURRENT_LOCATION}**. I'll use this for any on-the-go requests.
-
-- **Submit the "Plan My Trip" form** for a customised itinerary.
-- **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
-"""
 
 def format_trip_summary(ctx):
     """Formats the user's trip details for display (Restored from original)."""
@@ -161,6 +160,9 @@ if "trip_context" not in st.session_state:
     st.session_state.trip_context = None
 if "pending_form_response" not in st.session_state:
     st.session_state.pending_form_response = False
+# Initialize current location in session state by fetching it automatically
+if 'current_location' not in st.session_state:
+    st.session_state.current_location = get_location_from_ip()
 
 # Custom CSS for UI enhancements
 st.markdown("""
@@ -174,6 +176,16 @@ st.markdown("""
     <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true" alt="Trivanza Logo">
 </div>
 """, unsafe_allow_html=True)
+
+# Initial greeting message for the chat
+greeting_message = f"""
+Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
+
+I've automatically detected your location as **{st.session_state.current_location}**. I'll use this for any on-the-go requests.
+
+- **Submit the "Plan My Trip" form** for a customised itinerary.
+- **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
+"""
 
 # "Plan My Trip" form inside an expander, using all original fields
 with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expanded):
@@ -238,7 +250,9 @@ if user_input := st.chat_input("Ask me anything about your travel..."):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.spinner("Thinking..."):
         try:
-            messages_payload = [{"role": "system", "content": FINAL_SYSTEM_PROMPT}] + st.session_state.messages
+            # Build the prompt with the latest location before sending
+            final_prompt = build_system_prompt()
+            messages_payload = [{"role": "system", "content": final_prompt}] + st.session_state.messages
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages_payload,
@@ -259,7 +273,9 @@ if st.session_state.pending_form_response:
     st.session_state.pending_form_response = False
     with st.spinner("🚀 Your personalized itinerary is being crafted..."):
         try:
-            messages_payload = [{"role": "system", "content": FINAL_SYSTEM_PROMPT}] + st.session_state.messages
+            # Build the prompt with the latest location before sending
+            final_prompt = build_system_prompt()
+            messages_payload = [{"role": "system", "content": final_prompt}] + st.session_state.messages
             response = client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages_payload,
