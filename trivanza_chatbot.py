@@ -47,11 +47,9 @@ Your capabilities include:
 - **Trip Planning:** Creating detailed itineraries, suggesting bookings, packing lists, and budgets.
 - **Practical Information:** Answering questions on visa requirements, currency exchange, local SIM cards, and Wi-Fi.
 
-You MUST use the current real-world date as context. Today is {today_str}.
-- "today" is {today_date}.
-- "tomorrow" is {tomorrow_str}.
-- "yesterday" is {yesterday_str}.
-- "this weekend" starts Saturday, {weekend_str}.
+You MUST use the current real-world date and location as context.
+- Today is {today_str}.
+- The user's current location is: **{current_location}**. You MUST use this for all on-the-go requests like "nearest hospital". Do NOT ask for their location.
 
 NEVER say "I don't have access to real-time data." You MUST simulate **plausible, realistic information** based on typical data.
 - For a nearby place: "The nearest hospital to your location in Gurugram is Medanta - The Medicity. It's about a 15-minute drive. Should I provide directions?"
@@ -94,36 +92,28 @@ IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
 5.  **Closing:** Always ask: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
 """
 
-# Real-world date setup for the prompt
-CURRENT_DATETIME = datetime.now()
-CURRENT_DATE = CURRENT_DATETIME.date()
+# --- App State and Helper Functions ---
+# Simulate fetching the user's current location. In a real app, this would
+# come from a GPS API or a location service.
+CURRENT_LOCATION = "Gurugram, Haryana, India"
 
 def build_system_prompt():
-    """Builds the system prompt with current date information."""
-    today_str = CURRENT_DATE.strftime("%A, %B %d, %Y")
-    tomorrow_str = (CURRENT_DATE + timedelta(days=1)).strftime("%B %d, %Y")
-    yesterday_str = (CURRENT_DATE - timedelta(days=1)).strftime("%B %d, %Y")
-    upcoming_weekend = CURRENT_DATE + timedelta(days=(5 - CURRENT_DATE.weekday() + 7) % 7)
-    if upcoming_weekend <= CURRENT_DATE:
-        upcoming_weekend += timedelta(days=7)
-    weekend_str = upcoming_weekend.strftime("%B %d")
-
+    """Builds the system prompt with current date and location information."""
+    today_str = date.today().strftime("%A, %B %d, %Y")
     return ENHANCED_SYSTEM_PROMPT_TEMPLATE.format(
         today_str=today_str,
-        today_date=CURRENT_DATE,
-        tomorrow_str=tomorrow_str,
-        yesterday_str=yesterday_str,
-        weekend_str=weekend_str
+        current_location=CURRENT_LOCATION
     )
 
 # Build the final system prompt to be used in the API call
 FINAL_SYSTEM_PROMPT = build_system_prompt()
 
 # Initial greeting message for the chat
-greeting_message = """
+greeting_message = f"""
 Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
 
-I'm excited to help you with your travel plans.
+I see you're currently in **{CURRENT_LOCATION}**. I'll use this for any on-the-go requests.
+
 - **Submit the "Plan My Trip" form** for a customised itinerary.
 - **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
 """
