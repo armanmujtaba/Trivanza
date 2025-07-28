@@ -254,12 +254,23 @@ st.text_input(
     help="We've tried to detect your location automatically. You can correct it here if needed."
 )
 
-
-# Initial greeting message for the chat
-greeting_message = f"""
+def get_greeting_message():
+    """Generates a dynamic greeting message based on location detection status."""
+    loc = st.session_state.get("current_location", "Detecting...")
+    if loc in ["Detecting...", "Not Detected", "Unknown, Unknown (IP-based)"]:
+        return """
 Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
 
-Your automatically detected location is **{st.session_state.current_location}**. You can change this in the box above if it's not correct.
+I was unable to detect your location automatically. **Please enter your city in the box above** for on-the-go assistance.
+
+- **Submit the "Plan My Trip" form** for a customised itinerary.
+- **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
+"""
+    else:
+        return f"""
+Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
+
+Your automatically detected location is **{loc}**. You can change this in the box above if it's not correct.
 
 - **Submit the "Plan My Trip" form** for a customised itinerary.
 - **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
@@ -369,5 +380,6 @@ if st.session_state.pending_form_response:
 
 # Show initial greeting if there are no messages
 if not st.session_state.messages:
+    greeting_message = get_greeting_message()
     st.session_state.messages.append({"role": "assistant", "content": greeting_message})
     st.rerun()
