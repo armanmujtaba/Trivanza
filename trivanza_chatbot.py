@@ -56,16 +56,9 @@ IMPORTANT: You are a travel assistant. You help with ALL aspects of travel, incl
 
 You MUST answer any user query that is related to travel, trip planning, tourism, or any practical travel need, even if the keywords are not in the list below. Do not refuse travel or travel-adjacent logistics queries.
 
-You MUST answer any user query related to travel, including standalone questions about weather, climate, or forecasts at a destination.
+ONLY refuse questions that have NO connection to travel or practical needs of travelers (examples: programming, general math, world history not related to a destination, non-travel science, personal non-travel advice, etc.).
 
-NEVER refuse a question about the current weather, forecast, temperature, rain, humidity, or similar conditions in any city or travel destination (e.g., "What's the weather in Delhi?", "Will it rain in Mumbai tomorrow?", "Is it cold in Srinagar in December?").
-
-Such questions are 100% within your scope as a travel assistant because weather directly impacts packing, activities, transportation, and safety.
-
-ONLY refuse queries that are completely unrelated to travel, such as programming, math problems, medical advice (unless travel-related), relationship advice, or general world knowledge with no link to travel.
-
-If refusing, use ONLY this message: 
-"Sorry, I am your travel assistant and can only help with travel-related questions such as trip planning, destinations, logistics, practical needs, activities, or bookings. Please ask me about travel!"
+If refusing, politely reply: "Sorry, I am your travel assistant and can only help with travel-related questions such as trip planning, destinations, logistics, practical needs, activities, or bookings. Please ask me about travel!"
 
 Here is a (non-exhaustive) list of travel-related keywords and topics. Use your best judgment and answer any query related to these or any other travel-adjacent topic:
 🌍 General Travel Keywords: Travel, Trip, Vacation, Holiday, Journey, Adventure, Explore, Tourism, Backpacking, Road trip, Solo travel, Family vacation, Budget travel, Luxury travel, Eco-tourism, Sustainable travel, Digital nomad, Staycation, Gap year, Wandering, weather
@@ -186,16 +179,6 @@ def is_greeting(text):
     text_lower = text.lower().strip()
     return any(text_lower == greet for greet in greetings)
 
-def is_weather_query(text):
-    weather_keywords = [
-        "weather", "temperature", "rain", "sunny", "cloudy", "forecast",
-        "hot", "cold", "climate", "chance of rain", "is it raining", "will it snow",
-        "current weather", "today's weather", "tomorrow's weather", "monsoon", "humidity",
-        "wind speed", "weather in", "climate in", "weather today"
-    ]
-    text_lower = text.lower().strip()
-    return any(keyword in text_lower for keyword in weather_keywords)
-    
 def format_trip_summary(ctx):
     date_fmt = f"{ctx['from_date']} to {ctx['to_date']}"
     travelers = f"{ctx['group_size']} {'person' if ctx['group_size']==1 else 'people'} ({ctx['traveler_type']})"
@@ -484,27 +467,9 @@ user_input = st.chat_input(placeholder="How may I help you today?")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
-    
     if is_greeting(user_input):
         assistant_response = greeting_message
-    elif is_weather_query(user_input):
-        # Explicitly allow weather queries — treat as valid travel assistant input
-        N = 8
-        chat_history = st.session_state.messages[-N:]
-        messages = [{"role": "system", "content": STRICT_SYSTEM_PROMPT}] + chat_history
-        try:
-            response = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=messages,
-                temperature=0.7,
-                max_tokens=500  # Weather answers don't need full length
-            )
-            assistant_response = response.choices[0].message.content
-        except Exception as e:
-            print("OpenAI API error:", e)
-            assistant_response = "Sorry, I couldn't retrieve the weather information right now. Please try again later."
     else:
-        # Handle all other non-greeting, non-weather queries normally
         N = 8
         chat_history = st.session_state.messages[-N:]
         messages = [{"role": "system", "content": STRICT_SYSTEM_PROMPT}] + chat_history
@@ -520,7 +485,6 @@ if user_input:
             print("OpenAI API error:", e)
             st.error(f"OpenAI API error: {e}")
             assistant_response = "I'm unable to assist with creating itineraries at the moment. Let me know if you need help with anything else."
-    
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.rerun()
 
