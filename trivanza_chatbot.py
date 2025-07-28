@@ -192,11 +192,17 @@ def initialize_app():
     if 'app_initialized' in st.session_state:
         return
 
-    st.session_state.current_location = "Detecting..."
-    st.session_state.timezone = "UTC" # Default timezone
+    # This component will trigger a rerun once it has a value.
     gps_result = get_location_component()
     
-    if gps_result and isinstance(gps_result, dict):
+    # If the component hasn't returned a value yet, show a loading message and wait.
+    if gps_result is None:
+        st.info("Initializing and detecting your timezone...")
+        return # Stop execution and wait for the component to trigger a rerun.
+
+    # If we get here, the component has returned a value.
+    st.session_state.timezone = "UTC" # Default timezone
+    if isinstance(gps_result, dict):
         st.session_state.timezone = gps_result.get("timezone", "UTC")
         if gps_result.get("status") == "GPS_SUCCESS":
             st.session_state.current_location = gps_result.get("location")
@@ -205,7 +211,7 @@ def initialize_app():
     else: 
         st.session_state.current_location = "Not Detected"
 
-    # Initialize other state variables
+    # Initialize other state variables now that we have location/timezone
     st.session_state.trip_form_expanded = False
     st.session_state.messages = []
     st.session_state.form_submitted = False
