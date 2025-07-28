@@ -4,6 +4,7 @@ from datetime import date, datetime, timedelta
 import pandas as pd
 import requests 
 import streamlit.components.v1 as components
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 # Page configuration for the Streamlit app
 st.set_page_config(page_title="✈️ Trivanza - Your AI Travel Assistant", layout="centered")
@@ -93,7 +94,7 @@ IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
 
 # --- App State and Helper Functions ---
 
-# HTML and JavaScript to get GPS location from the browser
+# HTML and JavaScript to get GPS location and timezone from the browser
 def get_location_component():
     return components.html("""
         <script>
@@ -110,34 +111,42 @@ def get_location_component():
 
         function success(pos) {
             const crd = pos.coords;
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
             fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${crd.latitude}&lon=${crd.longitude}`)
                 .then(response => response.json())
                 .then(data => {
                     const city = data.address.city || data.address.town || data.address.village || 'Unknown City';
                     const country = data.address.country || 'Unknown Country';
-                    sendLocation({ "status": "GPS_SUCCESS", "location": `${city}, ${country} (GPS)` });
+                    sendLocation({ "status": "GPS_SUCCESS", "location": `${city}, ${country}`, "timezone": timezone });
                 })
-                .catch(err => sendLocation({ "status": "GEOCODE_FAILED" }));
+                .catch(err => sendLocation({ "status": "GEOCODE_FAILED", "timezone": timezone }));
         }
 
         function error(err) {
-            sendLocation({ "status": "GPS_FAILED" });
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            sendLocation({ "status": "GPS_FAILED", "timezone": timezone });
         }
 
         if (navigator.geolocation) {
             navigator.geolocation.getCurrentPosition(success, error, options);
         } else {
-            sendLocation({ "status": "GPS_NOT_SUPPORTED" });
+            sendLocation({ "status": "GPS_NOT_SUPPORTED", "timezone": "UTC" });
         }
         </script>
         """, height=0)
 
 def build_system_prompt():
-    """Builds the system prompt with current date and location information."""
-    now = datetime.now()
-    today_str = now.strftime("%A, %B %d, %Y")
-    current_time_str = now.strftime("%I:%M %p") # e.g., 01:30 PM
-    # Use the location from the session state
+    """Builds the system prompt with current date, time, and location information."""
+    user_timezone_str = st.session_state.get("timezone", "UTC")
+    try:
+        user_tz = ZoneInfo(user_timezone_str)
+    except ZoneInfoNotFoundError:
+        user_tz = ZoneInfo("UTC") # Fallback to UTC if timezone is invalid
+
+    now_local = datetime.now(user_tz)
+    today_str = now_local.strftime("%A, %B %d, %Y")
+    current_time_str = now_local.strftime("%I:%M %p %Z") # e.g., 01:30 PM IST
+
     current_location = st.session_state.get('current_location', 'Not Set')
     return ENHANCED_SYSTEM_PROMPT_TEMPLATE.format(
         today_str=today_str,
@@ -178,16 +187,21 @@ def format_trip_summary(ctx):
 # --- Streamlit UI and Session State Management ---
 
 def initialize_app():
-    """Handles the initial setup, including location detection."""
+    """Handles the initial setup, including location and timezone detection."""
     if 'app_initialized' in st.session_state:
         return
 
     st.session_state.current_location = "Detecting..."
+    st.session_state.timezone = "UTC" # Default timezone
     gps_result = get_location_component()
     
-    if gps_result and isinstance(gps_result, dict) and gps_result.get("status") == "GPS_SUCCESS":
-        st.session_state.current_location = gps_result.get("location")
-    else: # GPS failed, not supported, or component failed
+    if gps_result and isinstance(gps_result, dict):
+        st.session_state.timezone = gps_result.get("timezone", "UTC")
+        if gps_result.get("status") == "GPS_SUCCESS":
+            st.session_state.current_location = gps_result.get("location")
+        else: # GPS failed, not supported, or component failed
+            st.session_state.current_location = "Not Detected"
+    else: 
         st.session_state.current_location = "Not Detected"
 
     # Initialize other state variables
