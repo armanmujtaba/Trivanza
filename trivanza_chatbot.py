@@ -2,7 +2,8 @@ import streamlit as st
 from openai import OpenAI
 from datetime import date, datetime, timedelta
 import pandas as pd
-import requests # Added for IP-based geolocation
+import requests 
+import streamlit.components.v1 as components
 
 # Page configuration for the Streamlit app
 st.set_page_config(page_title="✈️ Trivanza - Your AI Travel Assistant", layout="centered")
@@ -95,6 +96,47 @@ IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
 
 # --- App State and Helper Functions ---
 
+# HTML and JavaScript to get GPS location from the browser
+location_component = components.html("""
+    <script>
+    const sendLocation = (loc) => {
+        window.parent.postMessage({
+            type: 'streamlit:setComponentValue',
+            value: loc
+        }, '*');
+    };
+
+    const options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0
+    };
+
+    function success(pos) {
+        const crd = pos.coords;
+        // Use a reverse geocoding API to get city/country from coordinates
+        fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${crd.latitude}&lon=${crd.longitude}`)
+            .then(response => response.json())
+            .then(data => {
+                const city = data.address.city || data.address.town || data.address.village || 'Unknown City';
+                const country = data.address.country || 'Unknown Country';
+                sendLocation(`${city}, ${country} (GPS)`);
+            })
+            .catch(err => {
+                sendLocation('GPS Coordinates Found, City Name Error');
+            });
+    }
+
+    function error(err) {
+        // If GPS fails, send a specific error message back to Streamlit
+        sendLocation('GPS_FAILED');
+    }
+
+    navigator.geolocation.getCurrentPosition(success, error, options);
+    </script>
+    """, height=0)
+
+
 @st.cache_data(ttl=3600) # Cache the location for an hour
 def get_location_from_ip():
     """Fetches approximate location from the user's public IP address."""
@@ -103,7 +145,7 @@ def get_location_from_ip():
         data = response.json()
         city = data.get("city", "Unknown")
         country = data.get("country", "Unknown")
-        return f"{city}, {country}"
+        return f"{city}, {country} (IP-based)"
     except Exception:
         return "Not Detected"
 
@@ -160,9 +202,14 @@ if "trip_context" not in st.session_state:
     st.session_state.trip_context = None
 if "pending_form_response" not in st.session_state:
     st.session_state.pending_form_response = False
-# Initialize current location in session state by fetching it automatically
+# Initialize current location in session state
 if 'current_location' not in st.session_state:
-    st.session_state.current_location = get_location_from_ip()
+    st.session_state.current_location = "Detecting..."
+    if location_component:
+        if location_component != 'GPS_FAILED':
+             st.session_state.current_location = location_component
+        else:
+             st.session_state.current_location = get_location_from_ip()
 
 # Custom CSS for UI enhancements
 st.markdown("""
@@ -177,11 +224,19 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Let user override location if needed
+st.text_input(
+    "📍 Your Current Location (auto-detected)",
+    key="current_location",
+    help="We've tried to detect your location automatically. You can correct it here if needed."
+)
+
+
 # Initial greeting message for the chat
 greeting_message = f"""
 Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
 
-I've automatically detected your location as **{st.session_state.current_location}**. I'll use this for any on-the-go requests.
+Your automatically detected location is **{st.session_state.current_location}**. You can change this in the box above if it's not correct.
 
 - **Submit the "Plan My Trip" form** for a customised itinerary.
 - **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
