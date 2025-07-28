@@ -1,6 +1,6 @@
 import streamlit as st
 from openai import OpenAI
-from datetime import date
+from datetime import date, datetime, timedelta
 import pandas as pd
 
 st.set_page_config(page_title="✈️ Trivanza Travel Assistant", layout="centered")
@@ -47,14 +47,68 @@ def add_price_with_inr(local_amount, local_currency_code):
         return f"{local_currency_code} {local_amount} (INR conversion unavailable)"
     return f"{local_currency_code} {local_amount:.2f} (₹{inr_value:.2f})"
 
-STRICT_SYSTEM_PROMPT = """
+# Real-world date setup
+CURRENT_DATETIME = datetime.now()
+CURRENT_DATE = CURRENT_DATETIME.date()
+
+# Build system prompt with real date
+def build_system_prompt():
+    today_str = CURRENT_DATE.strftime("%A, %B %d, %Y")
+    tomorrow_str = (CURRENT_DATE + timedelta(days=1)).strftime("%B %d, %Y")
+    yesterday_str = (CURRENT_DATE - timedelta(days=1)).strftime("%B %d, %Y")
+    upcoming_weekend = CURRENT_DATE + timedelta(days=(5 - CURRENT_DATE.weekday() + 7) % 7)
+    if upcoming_weekend <= CURRENT_DATE:
+        upcoming_weekend += timedelta(days=7)
+    weekend_str = upcoming_weekend.strftime("%B %d")
+
+    return STRICT_SYSTEM_PROMPT_TEMPLATE.format(
+        today_str=today_str,
+        today_date=CURRENT_DATE,
+        tomorrow_str=tomorrow_str,
+        yesterday_str=yesterday_str,
+        weekend_str=weekend_str
+    )
+
+STRICT_SYSTEM_PROMPT_TEMPLATE = """
 IMPORTANT: You are a travel assistant. You help with ALL aspects of travel, including but not limited to:
 - Planning, bookings, packing, budgeting, destinations, activities, transportation, accommodation, weather.
 - Local logistics, connectivity, and practical needs for travelers (e.g. petrol pumps, gas stations, EV charging, free Wi-Fi, local SIM cards, ATMs, currency exchange, public toilets, medical help, embassies, and other local amenities or services useful to travelers).
 - Anything a traveler might need before, during, or after a trip, whether at their destination or on their journey.
 - Weather forecasts, climate insights, seasonal recommendations, and packing tips based on current and expected conditions at the destination.
 
-You MUST answer any user query that is related to travel, trip planning, tourism, or any practical travel need, even if the keywords are not in the list below. Do not refuse travel or travel-adjacent logistics queries.
+You MUST use the current real-world date as context for all time-sensitive queries. Today is {today_str}.
+
+For any query involving time:
+- If the user says "today", "right now", "currently", use {today_date}.
+- If the user says "tomorrow", use {tomorrow_str}.
+- If the user says "yesterday", use {yesterday_str}.
+- If the user mentions "this weekend", assume it means starting Saturday, {weekend_str}.
+- For future dates, simulate realistic conditions based on season, local events, and travel patterns.
+- For past dates, simulate plausible historical conditions (e.g., monsoon rains, festival crowds).
+- For recurring events (e.g., weekly markets), determine the next occurrence based on today's date.
+
+ALWAYS mention the relevant date clearly in your response (e.g., "As of {today_date}...", "On Saturday, {weekend_str}...").
+
+NEVER say "I don't have access to real-time data." Instead, simulate **plausible, realistic information** based on:
+- Seasonal norms
+- Geographic location
+- Local events and festivals
+- Travel demand patterns
+- Historical weather and prices
+- Public transport schedules
+
+Examples:
+- "Today ({today_date}), the weather in Delhi is 41°C and sunny — typical for late May."
+- "The next flight from Delhi to Mumbai (IndiGo 604) departs at 16:30 today."
+- "This weekend (June 1–2), the Saturday Night Market in Anjuna, Goa will be open from 5 PM to midnight with live music and local crafts."
+- "Yesterday ({yesterday_str}), Mumbai experienced light rain and high humidity — common for this time of year."
+- "On August 10, 2025 (next Saturday), Goa is expected to be partly cloudy with a chance of afternoon showers — typical monsoon conditions."
+
+If the user asks about general trends (e.g., "What's the weather like in Srinagar?"), assume they mean **current conditions** unless otherwise specified.
+
+You MUST answer any user query related to travel, including standalone questions about weather, climate, or forecasts at a destination.
+NEVER refuse a question about the current weather, forecast, temperature, rain, humidity, or similar conditions in any city or travel destination (e.g., "What's the weather in Delhi?", "Will it rain in Mumbai tomorrow?", "Is it cold in Srinagar in December?").
+Such questions are 100% within your scope as a travel assistant because weather directly impacts packing, activities, transportation, and safety.
 
 ONLY refuse questions that have NO connection to travel or practical needs of travelers (examples: programming, general math, world history not related to a destination, non-travel science, personal non-travel advice, etc.).
 
@@ -73,7 +127,7 @@ Here is a (non-exhaustive) list of travel-related keywords and topics. Use your 
 📷 Photography & Content Creation Keywords: Travel photography, Instagrammable spots, Drone photography, Vlogging, Photo tours, Best photo locations, Mobile photography, Editing travel photos, Social media travel, Influencer trips, Content creation, Blogger trips, Creator visas, Storytelling through travel, Behind the scenes, Travel reels, Travel reels ideas, Captions for travel, Travel hashtags, Gear for travel photography
 🧳 Packing & Preparation Keywords: Packing list, What to pack, Packing cubes, Travel-sized toiletries, Adapters and converters, Weather-appropriate clothing, Essential travel gear, Safety items, First aid kit, Electronics for travel, Travel organizers, TSA-approved locks, Reusable travel items, Sustainable packing, Security checkpoint tips, Airport essentials, In-flight comfort, Long-haul travel tips, Emergency preparedness, Language translation tools
 🕊️ Wellness & Specialized Travel Keywords: Wellness travel, Retreats, Spiritual journeys, Meditation travel, Detox holidays, Ayurveda tours, Holistic healing, Mindfulness travel, Health tourism, Yoga vacations, Mental health travel, Digital detox, Silent retreats, Healing destinations, Alternative therapies, Self-care trips, Rejuvenation getaways, Emotional wellness, Spiritual pilgrimage, Holistic travel
-🔐 Health, Safety & Legal Keywords: Travel health tips, Vaccinations, Insurance coverage, Medical facilities abroad, Emergency contacts, Safe travel destinations, Women’s safety, Crime statistics, Political stability, Natural disaster zones, Quarantine rules, PCR testing, Health protocols, Border restrictions, Entry requirements, Legal assistance, Lost passport help, Embassy contacts, Crisis management, Evacuation services
+🔐 Health, Safety & Legal Keywords: Travel health tips, Vaccinations, Insurance coverage, Medical facilities abroad, Emergency contacts, Safe travel destinations, Women's safety, Crime statistics, Political stability, Natural disaster zones, Quarantine rules, PCR testing, Health protocols, Border restrictions, Entry requirements, Legal assistance, Lost passport help, Embassy contacts, Crisis management, Evacuation services
 🤝 Tour & Package Keywords: Guided tours, Private tours, Group tours, Custom packages, All-inclusive packages, Adventure packages, Luxury tour packages, Cultural tours, Religious tours, Educational tours, Photography tours, Wildlife tours, Culinary tours, Multi-country itineraries, Round-the-world trips, Cruise packages, Safari packages, Honeymoon packages, Family-friendly packages, Budget-friendly tours
 🚢 Cruise & Water-Based Travel Keywords: Cruise holidays, River cruises, Ocean cruises, Yacht charters, Sailing trips, Liveaboard diving, Island hopping, Boat tours, Ferry rides, Lake cruises, Coastal cruising, Port stops, Onboard entertainment, Cruise deals, Cruise lines, Cruise tips, Cruise packing, Shore excursions, Luxury cruise, Budget cruise
 
@@ -96,7 +150,7 @@ IMPORTANT: Self Drive Car must be included as a transport option wherever releva
 You are Trivanza, an expert and smart AI travel advisor, travel planner, travel assistant and travel consultant, a one-stop solution for all the travelers.
 
 You MUST follow all these instructions STRICTLY:
-1. Always begin with a warm, Personalized Travel Greeting Lines (with Place & Duration) (e.g., "Hello Traveler! Let’s plan your amazing 7-day getaway to Bali!", "Hey Explorer! Ready for your 4-day cultural dive into Kyoto?", "Bonjour Adventurer! A 5-day Paris escape sounds magnifique — let’s begin!", "Ciao Globetrotter! Your 6-day journey through Italy is just a click away.", "Namaste Traveler! A soulful 3-day trip to Rishikesh is waiting for you.").
+1. Always begin with a warm, Personalized Travel Greeting Lines (with Place & Duration) (e.g., "Hello Traveler! Let's plan your amazing 7-day getaway to Bali!", "Hey Explorer! Ready for your 4-day cultural dive into Kyoto?", "Bonjour Adventurer! A 5-day Paris escape sounds magnifique — let's begin!", "Ciao Globetrotter! Your 6-day journey through Italy is just a click away.", "Namaste Traveler! A soulful 3-day trip to Rishikesh is waiting for you.").
 2. For every itinerary output:
     - Use Markdown, but never use heading levels higher than `###`.
     - Each day should be started with a heading: `### Day N: <activity/city> (<YYYY-MM-DD>)`.
@@ -167,6 +221,9 @@ Hello Traveler! Here is your Paris trip itinerary:
     - At the end, always ask: "Would you like any modifications or changes to your itinerary? If yes, please specify and I'll update it accordingly."
 """
 
+# Build system prompt with current date
+STRICT_SYSTEM_PROMPT = build_system_prompt()
+
 greeting_message = """Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion  
 I'm excited to help you with your travel plans.
 - Submit Plan My Trip form for a customised itinerary  
@@ -178,6 +235,17 @@ def is_greeting(text):
     ]
     text_lower = text.lower().strip()
     return any(text_lower == greet for greet in greetings)
+
+# Weather query detection
+def is_weather_query(text):
+    weather_keywords = [
+        "weather", "temperature", "rain", "sunny", "cloudy", "forecast",
+        "hot", "cold", "climate", "chance of rain", "is it raining", "will it snow",
+        "current weather", "today's weather", "tomorrow's weather", "monsoon", "humidity",
+        "wind speed", "weather in", "climate in", "weather today"
+    ]
+    text_lower = text.lower().strip()
+    return any(keyword in text_lower for keyword in weather_keywords)
 
 def format_trip_summary(ctx):
     date_fmt = f"{ctx['from_date']} to {ctx['to_date']}"
@@ -469,6 +537,21 @@ if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
     if is_greeting(user_input):
         assistant_response = greeting_message
+    elif is_weather_query(user_input):
+        N = 8
+        chat_history = st.session_state.messages[-N:]
+        messages = [{"role": "system", "content": STRICT_SYSTEM_PROMPT}] + chat_history
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500
+            )
+            assistant_response = response.choices[0].message.content
+        except Exception as e:
+            print("OpenAI API error:", e)
+            assistant_response = "Sorry, I couldn't retrieve the weather information right now. Please try again later."
     else:
         N = 8
         chat_history = st.session_state.messages[-N:]
