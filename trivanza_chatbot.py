@@ -179,6 +179,16 @@ def is_greeting(text):
     text_lower = text.lower().strip()
     return any(text_lower == greet for greet in greetings)
 
+def is_weather_query(text):
+    weather_keywords = [
+        "weather", "temperature", "rain", "sunny", "cloudy", "forecast",
+        "hot", "cold", "climate", "chance of rain", "is it raining", "will it snow",
+        "current weather", "today's weather", "tomorrow's weather", "monsoon", "humidity",
+        "wind speed", "weather in", "climate in", "weather today"
+    ]
+    text_lower = text.lower().strip()
+    return any(keyword in text_lower for keyword in weather_keywords)
+    
 def format_trip_summary(ctx):
     date_fmt = f"{ctx['from_date']} to {ctx['to_date']}"
     travelers = f"{ctx['group_size']} {'person' if ctx['group_size']==1 else 'people'} ({ctx['traveler_type']})"
@@ -467,9 +477,27 @@ user_input = st.chat_input(placeholder="How may I help you today?")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
+    
     if is_greeting(user_input):
         assistant_response = greeting_message
+    elif is_weather_query(user_input):
+        # Explicitly allow weather queries — treat as valid travel assistant input
+        N = 8
+        chat_history = st.session_state.messages[-N:]
+        messages = [{"role": "system", "content": STRICT_SYSTEM_PROMPT}] + chat_history
+        try:
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=messages,
+                temperature=0.7,
+                max_tokens=500  # Weather answers don't need full length
+            )
+            assistant_response = response.choices[0].message.content
+        except Exception as e:
+            print("OpenAI API error:", e)
+            assistant_response = "Sorry, I couldn't retrieve the weather information right now. Please try again later."
     else:
+        # Handle all other non-greeting, non-weather queries normally
         N = 8
         chat_history = st.session_state.messages[-N:]
         messages = [{"role": "system", "content": STRICT_SYSTEM_PROMPT}] + chat_history
@@ -485,6 +513,7 @@ if user_input:
             print("OpenAI API error:", e)
             st.error(f"OpenAI API error: {e}")
             assistant_response = "I'm unable to assist with creating itineraries at the moment. Let me know if you need help with anything else."
+    
     st.session_state.messages.append({"role": "assistant", "content": assistant_response})
     st.rerun()
 
