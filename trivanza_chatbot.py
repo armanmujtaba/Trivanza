@@ -97,52 +97,43 @@ IMPORTANT: For every itinerary, you MUST follow all these instructions STRICTLY:
 # --- App State and Helper Functions ---
 
 # HTML and JavaScript to get GPS location from the browser
-location_component = components.html("""
-    <script>
-    const sendLocation = (loc) => {
-        // Check if Streamlit is ready to receive messages
-        if (window.parent) {
-            window.parent.postMessage({
-                type: 'streamlit:setComponentValue',
-                value: loc
-            }, '*');
+def get_location_component():
+    return components.html("""
+        <script>
+        const sendLocation = (loc) => {
+            if (window.parent) {
+                window.parent.postMessage({
+                    type: 'streamlit:setComponentValue',
+                    value: loc
+                }, '*');
+            }
+        };
+
+        const options = { enableHighAccuracy: true, timeout: 5000, maximumAge: 0 };
+
+        function success(pos) {
+            const crd = pos.coords;
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${crd.latitude}&lon=${crd.longitude}`)
+                .then(response => response.json())
+                .then(data => {
+                    const city = data.address.city || data.address.town || data.address.village || 'Unknown City';
+                    const country = data.address.country || 'Unknown Country';
+                    sendLocation({ "status": "GPS_SUCCESS", "location": `${city}, ${country} (GPS)` });
+                })
+                .catch(err => sendLocation({ "status": "GEOCODE_FAILED" }));
         }
-    };
 
-    const options = {
-        enableHighAccuracy: true,
-        timeout: 5000,
-        maximumAge: 0
-    };
+        function error(err) {
+            sendLocation({ "status": "GPS_FAILED" });
+        }
 
-    function success(pos) {
-        const crd = pos.coords;
-        // Use a reverse geocoding API to get city/country from coordinates
-        fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${crd.latitude}&lon=${crd.longitude}`)
-            .then(response => response.json())
-            .then(data => {
-                const city = data.address.city || data.address.town || data.address.village || 'Unknown City';
-                const country = data.address.country || 'Unknown Country';
-                sendLocation(`${city}, ${country} (GPS)`);
-            })
-            .catch(err => {
-                sendLocation('GPS Coordinates Found, City Name Error');
-            });
-    }
-
-    function error(err) {
-        // If GPS fails, send a specific error message back to Streamlit
-        sendLocation('GPS_FAILED');
-    }
-
-    // Ensure the browser supports geolocation
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(success, error, options);
-    } else {
-        sendLocation('GPS_NOT_SUPPORTED');
-    }
-    </script>
-    """, height=0)
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(success, error, options);
+        } else {
+            sendLocation({ "status": "GPS_NOT_SUPPORTED" });
+        }
+        </script>
+        """, height=0)
 
 
 @st.cache_data(ttl=3600) # Cache the location for an hour
@@ -199,184 +190,179 @@ def format_trip_summary(ctx):
 
 # --- Streamlit UI and Session State Management ---
 
-# Initialize session state variables
-if "trip_form_expanded" not in st.session_state:
-    st.session_state.trip_form_expanded = False
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-if "form_submitted" not in st.session_state:
-    st.session_state.form_submitted = False
-if "trip_context" not in st.session_state:
-    st.session_state.trip_context = None
-if "pending_form_response" not in st.session_state:
-    st.session_state.pending_form_response = False
+def initialize_app():
+    """Handles the initial setup, including location detection."""
+    if 'app_initialized' in st.session_state:
+        return
 
-# This flag ensures we only attempt to auto-detect the location once,
-# allowing the user to manually override it later without it being reset.
-if 'location_detected' not in st.session_state:
-    st.session_state.location_detected = False
     st.session_state.current_location = "Detecting..."
-
-# Get the value from the JS component.
-gps_value = location_component
-
-# Only run the auto-detection logic if we haven't successfully done it yet.
-if not st.session_state.location_detected:
-    if gps_value and gps_value not in ['GPS_FAILED', 'GPS_NOT_SUPPORTED']:
-        # GPS Success
-        st.session_state.current_location = str(gps_value) # Ensure it's a string
-        st.session_state.location_detected = True
-        st.rerun()
-    elif gps_value in ['GPS_FAILED', 'GPS_NOT_SUPPORTED']:
-        # GPS failed, fallback to IP
+    gps_result = get_location_component()
+    
+    if gps_result and isinstance(gps_result, dict):
+        if gps_result.get("status") == "GPS_SUCCESS":
+            st.session_state.current_location = gps_result.get("location")
+        else: # GPS failed or not supported
+            st.session_state.current_location = get_location_from_ip()
+    else: # Fallback if component fails to return a dict
         st.session_state.current_location = get_location_from_ip()
-        st.session_state.location_detected = True
+
+    # Initialize other state variables
+    st.session_state.trip_form_expanded = False
+    st.session_state.messages = []
+    st.session_state.form_submitted = False
+    st.session_state.trip_context = None
+    st.session_state.pending_form_response = False
+    st.session_state.app_initialized = True
+    st.rerun()
+
+
+def main_app():
+    """The main application logic, runs after initialization."""
+    # Custom CSS for UI enhancements
+    st.markdown("""
+    <style>
+        .logo-container { display: flex; justify-content: center; align-items: center; margin-bottom: 10px; }
+        .logo { width: 300px; }
+        .stChatInputContainer { position: fixed; bottom: 0; width: 100%; background: white; z-index: 1001; padding-bottom: 1rem; }
+        .appview-container .main .block-container { padding-bottom: 5rem; }
+    </style>
+    <div class="logo-container">
+        <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true" alt="Trivanza Logo">
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Let user override location if needed.
+    st.text_input(
+        "📍 Your Current Location (auto-detected)",
+        key="current_location",
+        help="We've tried to detect your location automatically. You can correct it here if needed."
+    )
+
+    # "Plan My Trip" form
+    with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expanded):
+        with st.form("travel_form", clear_on_submit=True):
+            st.markdown("### 🧳 Let's plan your perfect trip!")
+            col1, col2 = st.columns(2)
+            with col1:
+                origin = st.text_input("🌍 Origin", placeholder="e.g., New Delhi", key="origin")
+                traveler_type = st.selectbox("🧍 Traveler Type", ["Solo", "Couple", "Family", "Group", "Senior", "Student", "Business Traveler", "LGBTQ+", "Disabled / Accessibility-Friendly", "Pet-Friendly"], key="traveler_type")
+            with col2:
+                destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="destination")
+                group_size = st.number_input("👥 Group Size", min_value=1, value=1, key="group_size")
+            purpose_of_travel = st.selectbox("🎯 Purpose of Travel", ["Leisure / Holiday", "Adventure", "Business", "Honeymoon", "Education / Study Abroad", "Medical Tourism", "Pilgrimage / Religious", "Volunteer", "Digital Nomad", "Retirement", "Conference / Event"], key="purpose_of_travel")
+            mode_of_transport = st.selectbox("🚌 Preferred Transport", ["Flight", "Train", "Bus", "Car Rental", "Self Drive Car", "Walking", "Bicycle", "Motorbike", "Boat / Ferry", "Cruise", "Public Transport (Metro/Bus/Tram)"], key="mode_of_transport")
+            col3, col4 = st.columns(2)
+            with col3: from_date = st.date_input("📅 From Date", min_value=date.today(), key="from_date")
+            with col4: to_date = st.date_input("📅 To Date", min_value=from_date, key="to_date")
+            st.markdown("#### 💰 Budget & Accommodation")
+            col5, col6 = st.columns(2)
+            with col5: budget_amount = st.number_input("💰 Budget", min_value=1000, step=1000, key="budget_amount")
+            with col6: currency_type = st.selectbox("💱 Currency", ["₹ INR", "$ USD", "€ EUR", "£ GBP", "¥ JPY"], key="currency_type")
+            accommodation_pref = st.multiselect("🏨 Accommodation", ["Budget Hotel", "Mid-Range Hotel", "Luxury Hotel", "Hostel", "Airbnb / Vacation Rental", "Homestay", "Resort", "Glamping", "Boutique Hotel"], default=["Mid-Range Hotel"], key="accommodation_pref")
+            st.markdown("#### 🎯 Preferences & Interests")
+            activities_interests = st.multiselect("🎨 Activities & Interests", ["Sightseeing", "Hiking / Trekking", "Scuba Diving / Snorkeling", "Wildlife Safaris", "Museum Visits", "Nightlife", "Food & Drink", "Shopping", "Spa / Wellness", "Photography"], key="activities_interests")
+            food_preferences = st.multiselect("🍽️ Food Preferences", ["Vegetarian", "Vegan", "Gluten-Free", "Non-Vegetarian", "Halal", "Kosher", "Local Cuisine", "Street Food", "Fine Dining"], key="food_preferences")
+            comm_connectivity = st.multiselect("📡 Communication & Connectivity", ["English Spoken", "Language Barrier", "Wi-Fi Required", "SIM Card Needed", "Translation Tools"], key="comm_connectivity")
+            sustainability = st.selectbox("🌱 Sustainability", ["None", "Eco-Friendly Stays", "Carbon Offset Flights", "Zero-Waste Activities"], key="sustainability")
+            cultural_pref = st.selectbox("👗 Cultural Sensitivity", ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"], key="cultural_pref")
+            submit_button = st.form_submit_button("🚀 Generate Itinerary")
+
+            if submit_button:
+                st.session_state.trip_form_expanded = False
+                st.session_state.form_submitted = True
+                st.session_state.pending_form_response = True
+                st.session_state.trip_context = {
+                    "origin": origin, "destination": destination, "from_date": from_date, "to_date": to_date,
+                    "traveler_type": traveler_type, "group_size": group_size, "purpose_of_travel": purpose_of_travel,
+                    "food_preferences": food_preferences, "comm_connectivity": comm_connectivity,
+                    "sustainability": sustainability, "cultural_pref": cultural_pref,
+                    "activities_interests": activities_interests, "budget_amount": budget_amount,
+                    "currency_type": currency_type, "accommodation_pref": accommodation_pref,
+                    "mode_of_transport": mode_of_transport
+                }
+                prompt_for_llm = (f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Details: {st.session_state.trip_context}")
+                st.session_state.pending_llm_prompt = prompt_for_llm
+                st.session_state.messages = []
+                st.rerun()
+
+    # Display trip summary if a form was submitted
+    if st.session_state.form_submitted and st.session_state.trip_context:
+        st.info(format_trip_summary(st.session_state.trip_context))
+
+    # Show initial greeting message if no other messages exist
+    if not st.session_state.messages:
+        loc = st.session_state.get("current_location", "Detecting...")
+        if loc in ["Detecting...", "Not Detected", "Unknown, Unknown (IP-based)"]:
+            greeting_message = """
+    Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
+
+    I was unable to detect your location automatically. **Please enter your city in the box above** for on-the-go assistance.
+
+    - **Submit the "Plan My Trip" form** for a customised itinerary.
+    - **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
+    """
+        else:
+            greeting_message = f"""
+    Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
+
+    Your automatically detected location is **{loc}**. You can change this in the box above if it's not correct.
+
+    - **Submit the "Plan My Trip" form** for a customised itinerary.
+    - **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
+    """
+        st.session_state.messages.append({"role": "assistant", "content": greeting_message})
+
+    # Display chat history
+    for msg in st.session_state.messages:
+        avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
+        with st.chat_message(msg["role"], avatar=avatar):
+            st.markdown(msg["content"])
+
+    # Handle new user input from chat box
+    if user_input := st.chat_input("Ask me anything about your travel..."):
+        st.session_state.messages.append({"role": "user", "content": user_input})
+        with st.spinner("Thinking..."):
+            try:
+                final_prompt = build_system_prompt()
+                messages_payload = [{"role": "system", "content": final_prompt}] + st.session_state.messages
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages_payload,
+                    temperature=0.7,
+                    max_tokens=2048
+                )
+                assistant_response = response.choices[0].message.content
+            except Exception as e:
+                st.error(f"An error occurred: {e}")
+                assistant_response = "I'm having trouble connecting right now. Please try again in a moment."
+        st.session_state.messages.append({"role": "assistant", "content": assistant_response})
         st.rerun()
 
-# Custom CSS for UI enhancements
-st.markdown("""
-<style>
-    .logo-container { display: flex; justify-content: center; align-items: center; margin-bottom: 10px; }
-    .logo { width: 300px; }
-    .stChatInputContainer { position: fixed; bottom: 0; width: 100%; background: white; z-index: 1001; padding-bottom: 1rem; }
-    .appview-container .main .block-container { padding-bottom: 5rem; }
-</style>
-<div class="logo-container">
-    <img class="logo" src="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/Trivanza.png?raw=true" alt="Trivanza Logo">
-</div>
-""", unsafe_allow_html=True)
+    # Handle the response generation after form submission
+    if st.session_state.pending_form_response:
+        prompt = st.session_state.pending_llm_prompt
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        st.session_state.pending_form_response = False
+        with st.spinner("🚀 Your personalized itinerary is being crafted..."):
+            try:
+                final_prompt = build_system_prompt()
+                messages_payload = [{"role": "system", "content": final_prompt}] + st.session_state.messages
+                response = client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=messages_payload,
+                    temperature=0.7,
+                    max_tokens=3500
+                )
+                assistant_response = response.choices[0].message.content
+            except Exception as e:
+                st.error(f"An error occurred while generating the itinerary: {e}")
+                assistant_response = "I'm unable to create the itinerary at this moment. Please try again later."
+        st.session_state.messages.append({"role": "assistant", "content": assistant_response})
+        st.rerun()
 
-# Let user override location if needed. The `key` links this widget to
-# st.session_state.current_location.
-st.text_input(
-    "📍 Your Current Location (auto-detected)",
-    key="current_location",
-    help="We've tried to detect your location automatically. You can correct it here if needed."
-)
 
-# "Plan My Trip" form inside an expander, using all original fields
-with st.expander("📋 Plan My Trip", expanded=st.session_state.trip_form_expanded):
-    with st.form("travel_form", clear_on_submit=True):
-        st.markdown("### 🧳 Let's plan your perfect trip!")
-        # All form fields are kept as per your original code
-        col1, col2 = st.columns(2)
-        with col1:
-            origin = st.text_input("🌍 Origin", placeholder="e.g., New Delhi", key="origin")
-            traveler_type = st.selectbox("🧍 Traveler Type", ["Solo", "Couple", "Family", "Group", "Senior", "Student", "Business Traveler", "LGBTQ+", "Disabled / Accessibility-Friendly", "Pet-Friendly"], key="traveler_type")
-        with col2:
-            destination = st.text_input("📍 Destination", placeholder="e.g., Paris", key="destination")
-            group_size = st.number_input("👥 Group Size", min_value=1, value=1, key="group_size")
-        purpose_of_travel = st.selectbox("🎯 Purpose of Travel", ["Leisure / Holiday", "Adventure", "Business", "Honeymoon", "Education / Study Abroad", "Medical Tourism", "Pilgrimage / Religious", "Volunteer", "Digital Nomad", "Retirement", "Conference / Event"], key="purpose_of_travel")
-        mode_of_transport = st.selectbox("🚌 Preferred Transport", ["Flight", "Train", "Bus", "Car Rental", "Self Drive Car", "Walking", "Bicycle", "Motorbike", "Boat / Ferry", "Cruise", "Public Transport (Metro/Bus/Tram)"], key="mode_of_transport")
-        col3, col4 = st.columns(2)
-        with col3: from_date = st.date_input("📅 From Date", min_value=date.today(), key="from_date")
-        with col4: to_date = st.date_input("📅 To Date", min_value=from_date, key="to_date")
-        st.markdown("#### 💰 Budget & Accommodation")
-        col5, col6 = st.columns(2)
-        with col5: budget_amount = st.number_input("💰 Budget", min_value=1000, step=1000, key="budget_amount")
-        with col6: currency_type = st.selectbox("💱 Currency", ["₹ INR", "$ USD", "€ EUR", "£ GBP", "¥ JPY"], key="currency_type")
-        accommodation_pref = st.multiselect("🏨 Accommodation", ["Budget Hotel", "Mid-Range Hotel", "Luxury Hotel", "Hostel", "Airbnb / Vacation Rental", "Homestay", "Resort", "Glamping", "Boutique Hotel"], default=["Mid-Range Hotel"], key="accommodation_pref")
-        st.markdown("#### 🎯 Preferences & Interests")
-        activities_interests = st.multiselect("🎨 Activities & Interests", ["Sightseeing", "Hiking / Trekking", "Scuba Diving / Snorkeling", "Wildlife Safaris", "Museum Visits", "Nightlife", "Food & Drink", "Shopping", "Spa / Wellness", "Photography"], key="activities_interests")
-        food_preferences = st.multiselect("🍽️ Food Preferences", ["Vegetarian", "Vegan", "Gluten-Free", "Non-Vegetarian", "Halal", "Kosher", "Local Cuisine", "Street Food", "Fine Dining"], key="food_preferences")
-        comm_connectivity = st.multiselect("📡 Communication & Connectivity", ["English Spoken", "Language Barrier", "Wi-Fi Required", "SIM Card Needed", "Translation Tools"], key="comm_connectivity")
-        sustainability = st.selectbox("🌱 Sustainability", ["None", "Eco-Friendly Stays", "Carbon Offset Flights", "Zero-Waste Activities"], key="sustainability")
-        cultural_pref = st.selectbox("👗 Cultural Sensitivity", ["Standard", "Conservative Dress", "Religious Holidays", "Gender Norms"], key="cultural_pref")
-        submit_button = st.form_submit_button("🚀 Generate Itinerary")
-
-        if submit_button:
-            st.session_state.trip_form_expanded = False
-            st.session_state.form_submitted = True
-            st.session_state.pending_form_response = True
-            st.session_state.trip_context = {
-                "origin": origin, "destination": destination, "from_date": from_date, "to_date": to_date,
-                "traveler_type": traveler_type, "group_size": group_size, "purpose_of_travel": purpose_of_travel,
-                "food_preferences": food_preferences, "comm_connectivity": comm_connectivity,
-                "sustainability": sustainability, "cultural_pref": cultural_pref,
-                "activities_interests": activities_interests, "budget_amount": budget_amount,
-                "currency_type": currency_type, "accommodation_pref": accommodation_pref,
-                "mode_of_transport": mode_of_transport
-            }
-            prompt_for_llm = (f"Plan a trip from {origin} to {destination} from {from_date} to {to_date} for a {traveler_type.lower()} of {group_size} people. Details: {st.session_state.trip_context}")
-            st.session_state.pending_llm_prompt = prompt_for_llm
-            st.session_state.messages = []
-            st.rerun()
-
-# Display trip summary if a form was submitted
-if st.session_state.form_submitted and st.session_state.trip_context:
-    st.info(format_trip_summary(st.session_state.trip_context))
-
-# Display chat history
-for msg in st.session_state.messages:
-    avatar = "https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png" if msg["role"] == "assistant" else None
-    with st.chat_message(msg["role"], avatar=avatar):
-        st.markdown(msg["content"])
-
-# Handle new user input from chat box
-if user_input := st.chat_input("Ask me anything about your travel..."):
-    st.session_state.messages.append({"role": "user", "content": user_input})
-    with st.spinner("Thinking..."):
-        try:
-            # Build the prompt with the latest location before sending
-            final_prompt = build_system_prompt()
-            messages_payload = [{"role": "system", "content": final_prompt}] + st.session_state.messages
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages_payload,
-                temperature=0.7,
-                max_tokens=2048
-            )
-            assistant_response = response.choices[0].message.content
-        except Exception as e:
-            st.error(f"An error occurred: {e}")
-            assistant_response = "I'm having trouble connecting right now. Please try again in a moment."
-    st.session_state.messages.append({"role": "assistant", "content": assistant_response})
-    st.rerun()
-
-# Handle the response generation after form submission
-if st.session_state.pending_form_response:
-    prompt = st.session_state.pending_llm_prompt
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    st.session_state.pending_form_response = False
-    with st.spinner("🚀 Your personalized itinerary is being crafted..."):
-        try:
-            # Build the prompt with the latest location before sending
-            final_prompt = build_system_prompt()
-            messages_payload = [{"role": "system", "content": final_prompt}] + st.session_state.messages
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages_payload,
-                temperature=0.7,
-                max_tokens=3500
-            )
-            assistant_response = response.choices[0].message.content
-        except Exception as e:
-            st.error(f"An error occurred while generating the itinerary: {e}")
-            assistant_response = "I'm unable to create the itinerary at this moment. Please try again later."
-    st.session_state.messages.append({"role": "assistant", "content": assistant_response})
-    st.rerun()
-
-# Show initial greeting if there are no messages
-if not st.session_state.messages:
-    loc = st.session_state.get("current_location", "Detecting...")
-    if loc in ["Detecting...", "Not Detected", "Unknown, Unknown (IP-based)"]:
-        greeting_message = """
-Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
-
-I was unable to detect your location automatically. **Please enter your city in the box above** for on-the-go assistance.
-
-- **Submit the "Plan My Trip" form** for a customised itinerary.
-- **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
-"""
-    else:
-        greeting_message = f"""
-Hello Traveler! Welcome to Trivanza - I'm Your Smart Travel Companion.
-
-Your automatically detected location is **{loc}**. You can change this in the box above if it's not correct.
-
-- **Submit the "Plan My Trip" form** for a customised itinerary.
-- **Use this chat** for any other travel questions, like "Where is the nearest hospital?" or "Is my flight on time?"
-"""
-    with st.chat_message("assistant", avatar="https://raw.githubusercontent.com/armanmujtaba/Trivanza/main/trivanza_logo.png"):
-        st.markdown(greeting_message)
-    st.session_state.messages.append({"role": "assistant", "content": greeting_message})
+# --- Main App Execution ---
+if 'app_initialized' not in st.session_state:
+    initialize_app()
+else:
+    main_app()
